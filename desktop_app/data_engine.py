@@ -33,28 +33,25 @@ def scan_market(tickers, status_callback=None):
     Processing 40 tickers at a time prevents timeouts and hanging.
     """
     total = len(tickers)
-    results = []
-    processed_count = 0
-    
     import random
     
-    # Chunk Size Strategy:
-    # 25 is a balanced number. Not too small to be slow, not too big to timeout.
-    CHUNK_SIZE = 25 
+    # Endurance Mode Strategy:
+    # Small chunks and NO threading makes it look more natural to Yahoo.
+    CHUNK_SIZE = 15 
     
     # Split into chunks
     chunks = [tickers[i:i + CHUNK_SIZE] for i in range(0, len(tickers), CHUNK_SIZE)]
     
     from data_engine import INDEX_CHANGE_1D
     
-    for chunk in chunks:
+    for i, chunk in enumerate(chunks):
         # RETRY LOGIC (3 Attempts)
         success = False
         attempts = 0
         
         while not success and attempts < 3:
             try:
-                # 1. Bulk Download (Daily) for this chunk
+                # 1. Bulk Download (Daily) - Threads=False for anti-detect
                 df_daily_bulk = yf.download(
                     chunk, 
                     period="1y", 
@@ -62,10 +59,10 @@ def scan_market(tickers, status_callback=None):
                     group_by='ticker', 
                     auto_adjust=True, 
                     progress=False,
-                    threads=True
+                    threads=False 
                 )
                 
-                # 2. Bulk Download (Hourly) for this chunk
+                # 2. Bulk Download (Hourly)
                 df_hourly_bulk = yf.download(
                     chunk, 
                     period="1mo", 
@@ -73,18 +70,17 @@ def scan_market(tickers, status_callback=None):
                     group_by='ticker', 
                     auto_adjust=True, 
                     progress=False,
-                    threads=True
+                    threads=False
                 )
                 
-                # If we got here, downloads worked (even if some tickers failed individually)
-                success = True 
+                if not df_daily_bulk.empty:
+                    success = True 
                 
             except Exception as e:
                 attempts += 1
                 logger.error(f"Chunk failed (Attempt {attempts}/3): {e}")
-                time.sleep(5) # Penalty Wait
+                time.sleep(10) # Heavy retry wait
         
-        # If still failed after 3 tries, skip this chunk
         if not success:
             processed_count += len(chunk)
             if status_callback: status_callback(processed_count, total)
@@ -93,7 +89,6 @@ def scan_market(tickers, status_callback=None):
         # 3. Process Chunk locally
         try:
             for ticker in chunk:
-                # ... (Ticker processing logic remains same) ...
                 try:
                     # Daily Data Extraction
                     if len(chunk) == 1:
@@ -115,44 +110,28 @@ def scan_market(tickers, status_callback=None):
                     rs = gain / loss
                     df_daily['RSI'] = 100 - (100 / (1 + rs))
                     
-                    # 3.3 MFI Calculation (Money Flow Index) - HACIM TEYİDİ
-                    # Typical Price
+                    # 3.3 MFI Calculation
                     tp = (df_daily['High'] + df_daily['Low'] + df_daily['Close']) / 3
-                    # Raw Money Flow
                     rmf = tp * df_daily['Volume']
-                    
-                    # Positive/Negative Flow
                     mf_up = rmf.where(tp > tp.shift(1), 0)
                     mf_down = rmf.where(tp < tp.shift(1), 0)
-                    
-                    # MFI Ratio
                     mf_up_avg = mf_up.rolling(window=14).mean()
                     mf_down_avg = mf_down.rolling(window=14).mean()
-                    
-                    # Avoid division by zero for MFI
                     mfi_ratio = mf_up_avg / mf_down_avg
                     mfi = 100 - (100 / (1 + mfi_ratio))
                     df_daily['MFI'] = mfi
 
-                    # 3.4 Moving Averages (MA5 & MA21)
                     df_daily['MA5'] = df_daily['Close'].rolling(window=5).mean()
                     df_daily['MA21'] = df_daily['Close'].rolling(window=21).mean()
 
-                    # Get latest values
                     current_rsi = df_daily['RSI'].iloc[-1] if not df_daily['RSI'].empty else 0
                     current_mfi = df_daily['MFI'].iloc[-1] if not df_daily['MFI'].empty else 0
-                    current_ma5 = df_daily['MA5'].iloc[-1] if not df_daily['MA5'].empty else 0
                     current_ma21 = df_daily['MA21'].iloc[-1] if not df_daily['MA21'].empty else 0
                     current_vol = float(df_daily['Volume'].iloc[-1])
-                    
-                    # Volatility
-                    std_20 = df_daily['Close'].rolling(window=20).std().iloc[-1]
-                    volatility = (std_20 / current_price) * 100 if current_price > 0 else 0.0
                     
                     rsi_series = ta.rsi(df_daily['Close'], length=14)
                     rsi_day = rsi_series.iloc[-1] if rsi_series is not None and not rsi_series.empty else 0
                     
-                    # Change Calcs
                     change_1d = 0.0
                     if len(df_daily) > 1:
                         prev = float(df_daily['Close'].iloc[-2])
@@ -163,7 +142,6 @@ def scan_market(tickers, status_callback=None):
                         df_hourly = df_hourly_bulk
                     else:
                         df_hourly = df_hourly_bulk[ticker] if ticker in df_hourly_bulk else pd.DataFrame()
-                        
                     df_hourly = df_hourly.dropna()
                     
                     rsi_60 = 0.0
@@ -172,18 +150,12 @@ def scan_market(tickers, status_callback=None):
                     squeeze_status = "NORMAL"
                     
                     if not df_hourly.empty and len(df_hourly) > 20:
-                        # RSI 1H
                         rsi_h = ta.rsi(df_hourly['Close'], length=14)
                         rsi_60 = rsi_h.iloc[-1] if rsi_h is not None else 0
-                        
-                        # MA5 Hourly
                         ma5_h = ta.sma(df_hourly['Close'], length=5)
                         if ma5_h is not None:
                             ma5_val = ma5_h.iloc[-1]
                             ma5_s_dist = ((current_price - ma5_val) / ma5_val) * 100 if ma5_val != 0 else 0
-                            
-                        # Squeeze Logic (Refined)
-                        # "SUPER SQUEEZE" = Bandwidth is in the bottom 10% of last 50 periods (Extremely tight)
                         bb = ta.bbands(df_hourly['Close'], length=20, std=2.0)
                         if bb is not None:
                             width = (bb.iloc[:, 2] - bb.iloc[:, 0]) / bb.iloc[:, 1]
@@ -191,24 +163,17 @@ def scan_market(tickers, status_callback=None):
                                 curr_w = width.iloc[-1]
                                 thresh_normal = width.tail(50).quantile(0.20)
                                 thresh_super = width.tail(50).quantile(0.10)
-                                
                                 if curr_w <= thresh_super: squeeze_status = "SUPER SQUEEZE"
                                 elif curr_w <= thresh_normal: squeeze_status = "SQUEEZE"
-                        
-                        # RSI 4H
                         df_4h = df_hourly.resample('4h').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last'}).dropna()
                         if len(df_4h) > 14:
                             rsi_4h = ta.rsi(df_4h['Close'], length=14)
                             rsi_240 = rsi_4h.iloc[-1] if rsi_4h is not None else 0
 
-                    # Strong Close (Marubozu-like) Detection
                     day_low = float(df_daily['Low'].iloc[-1])
                     day_range = current_high - day_low
                     close_pos = ((current_price - day_low) / day_range) if day_range > 0 else 0
-                    is_strong_close = close_pos > 0.9 and change_1d > 1.0 # Requires >1% gain to be strong
-                    
-                    # Gap Up Detection
-                    # Today's Open > Yesterday's High by at least 0.5%
+                    is_strong_close = close_pos > 0.9 and change_1d > 1.0
                     is_gap_up = False
                     if len(df_daily) > 1:
                         prev_high = float(df_daily['High'].iloc[-2])
@@ -216,10 +181,8 @@ def scan_market(tickers, status_callback=None):
                         if prev_high > 0 and curr_open > prev_high * 1.005:
                             is_gap_up = True
 
-                    # Volume & Volatility
                     avg_vol_10 = df_daily['Volume'].rolling(10).mean().iloc[-1]
                     rvol_day = current_vol / avg_vol_10 if avg_vol_10 > 0 else 0
-                    ma5_dist_percent = ma5_s_dist 
                     
                     results.append({
                         "Sembol": ticker.replace(".IS", ""),
@@ -227,7 +190,7 @@ def scan_market(tickers, status_callback=None):
                         "Zirve": current_high,
                         "Gün Fark %": change_1d,
                         "RVol": round(rvol_day, 2),
-                        "Ma5 S %": ma5_dist_percent,
+                        "Ma5 S %": ma5_s_dist,
                         "RSI60": float(rsi_60) if pd.notnull(rsi_60) else 0.0,
                         "RSI240": float(rsi_240) if pd.notnull(rsi_240) else 0.0,
                         "RSIDAY": float(current_rsi),
@@ -246,8 +209,10 @@ def scan_market(tickers, status_callback=None):
             if status_callback:
                 status_callback(processed_count, total)
                 
-            # Random Sleep to mimic human behavior (1-4 seconds)
-            sleep_time = random.uniform(1.0, 4.0)
+            # PROGRESSIVE SLEEP (More we scan, longer we wait)
+            # Base sleep 1-3s, + added penalty as we go
+            progress_penalty = (processed_count / 100) * 1.5 # After 300 stocks, adds +4.5s
+            sleep_time = random.uniform(2.0, 4.0) + progress_penalty
             time.sleep(sleep_time)
             
         except Exception as e:
