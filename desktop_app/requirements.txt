@@ -4,3 +4,6 @@ pandas
 pandas_ta
 openpyxl
 requests
+watchdog
+xlsxwriter
+plotly

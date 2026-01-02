@@ -547,18 +547,16 @@ if st.session_state['results'] is not None and not st.session_state['results'].e
         }
     )
     
-    # Export
-    buffer = BytesIO()
-    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Momentum')
+    # Export to CSV (Simple & Error-Free)
+    csv = df.to_csv(index=False).encode('utf-8')
             
     col_dwn, col_copy = st.columns([1, 2])
     with col_dwn:
         st.download_button(
-            "DOWNLOAD XSLX", 
-            data=buffer, 
-            file_name="Panda_Quantum_Scan.xlsx", 
-            mime="application/vnd.ms-excel"
+            "DOWNLOAD CSV", 
+            data=csv, 
+            file_name=f"Panda_Quantum_{time.strftime('%Y%m%d_%H%M')}.csv", 
+            mime="text/csv"
         )
     
     with col_copy:
