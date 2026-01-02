@@ -33,6 +33,8 @@ def scan_market(tickers, status_callback=None):
     Processing 40 tickers at a time prevents timeouts and hanging.
     """
     total = len(tickers)
+    results = []
+    processed_count = 0
     import random
     
     # Endurance Mode Strategy:
