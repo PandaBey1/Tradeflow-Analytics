@@ -37,7 +37,7 @@ def scan_market(tickers, status_callback=None):
     processed_count = 0
     
     # Smaller chunks to ensure UI updates and prevent stalling
-    CHUNK_SIZE = 40 
+    CHUNK_SIZE = 10
     
     # Split into chunks
     chunks = [tickers[i:i + CHUNK_SIZE] for i in range(0, len(tickers), CHUNK_SIZE)]
@@ -225,7 +225,7 @@ def scan_market(tickers, status_callback=None):
                 status_callback(processed_count, total)
                 
             # Nice sleep to avoid hammering
-            time.sleep(0.5)
+            time.sleep(2.0)
             
         except Exception as e:
             logger.error(f"Chunk failed: {e}")
