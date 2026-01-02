@@ -12,13 +12,6 @@ logger = logging.getLogger(__name__)
 # Global cache for Index data
 INDEX_CHANGE_1D = 0.0
 
-# Configure Session to mimic a browser (Anti-Detection)
-import requests
-session = requests.Session()
-session.headers.update({
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-})
-
 def fetch_index_data():
     """Fetches XU100 data to use as baseline."""
     global INDEX_CHANGE_1D
@@ -62,8 +55,7 @@ def scan_market(tickers, status_callback=None):
                 group_by='ticker', 
                 auto_adjust=True, 
                 progress=False,
-                threads=True,
-                session=session
+                threads=True
             )
             
             # 2. Bulk Download (Hourly) for this chunk
@@ -74,8 +66,7 @@ def scan_market(tickers, status_callback=None):
                 group_by='ticker', 
                 auto_adjust=True, 
                 progress=False,
-                threads=True,
-                session=session
+                threads=True
             )
             
             # 3. Process Chunk locally
