@@ -37,9 +37,9 @@ def scan_market(tickers, status_callback=None):
     processed_count = 0
     import random
     
-    # Endurance Mode Strategy:
-    # Small chunks and NO threading makes it look more natural to Yahoo.
-    CHUNK_SIZE = 15 
+    # Fast & Safe Mode Strategy:
+    # Larger chunks + threading for speed, steady sleep.
+    CHUNK_SIZE = 25 
     
     # Split into chunks
     chunks = [tickers[i:i + CHUNK_SIZE] for i in range(0, len(tickers), CHUNK_SIZE)]
@@ -47,41 +47,37 @@ def scan_market(tickers, status_callback=None):
     from data_engine import INDEX_CHANGE_1D
     
     for i, chunk in enumerate(chunks):
-        # RETRY LOGIC (3 Attempts)
+        # SIMPLE RETRY (1 Attempt)
         success = False
-        attempts = 0
-        
-        while not success and attempts < 3:
-            try:
-                # 1. Bulk Download (Daily) - Threads=False for anti-detect
-                df_daily_bulk = yf.download(
-                    chunk, 
-                    period="1y", 
-                    interval="1d", 
-                    group_by='ticker', 
-                    auto_adjust=True, 
-                    progress=False,
-                    threads=False 
-                )
-                
-                # 2. Bulk Download (Hourly)
-                df_hourly_bulk = yf.download(
-                    chunk, 
-                    period="1mo", 
-                    interval="60m", 
-                    group_by='ticker', 
-                    auto_adjust=True, 
-                    progress=False,
-                    threads=False
-                )
-                
-                if not df_daily_bulk.empty:
-                    success = True 
-                
-            except Exception as e:
-                attempts += 1
-                logger.error(f"Chunk failed (Attempt {attempts}/3): {e}")
-                time.sleep(10) # Heavy retry wait
+        try:
+            # 1. Bulk Download (Daily) - Threads=True for speed
+            df_daily_bulk = yf.download(
+                chunk, 
+                period="1y", 
+                interval="1d", 
+                group_by='ticker', 
+                auto_adjust=True, 
+                progress=False,
+                threads=True 
+            )
+            
+            # 2. Bulk Download (Hourly)
+            df_hourly_bulk = yf.download(
+                chunk, 
+                period="1mo", 
+                interval="60m", 
+                group_by='ticker', 
+                auto_adjust=True, 
+                progress=False,
+                threads=True
+            )
+            
+            if not df_daily_bulk.empty:
+                success = True 
+            
+        except Exception as e:
+            logger.error(f"Chunk failed: {e}")
+            time.sleep(2) # Quick wait before move on
         
         if not success:
             processed_count += len(chunk)
@@ -211,11 +207,8 @@ def scan_market(tickers, status_callback=None):
             if status_callback:
                 status_callback(processed_count, total)
                 
-            # PROGRESSIVE SLEEP (More we scan, longer we wait)
-            # Base sleep 1-3s, + added penalty as we go
-            progress_penalty = (processed_count / 100) * 1.5 # After 300 stocks, adds +4.5s
-            sleep_time = random.uniform(2.0, 4.0) + progress_penalty
-            time.sleep(sleep_time)
+            # STEADY FAST SLEEP
+            time.sleep(1.5)
             
         except Exception as e:
             logger.error(f"Chunk processing failed: {e}")
