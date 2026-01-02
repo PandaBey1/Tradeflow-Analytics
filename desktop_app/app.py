@@ -597,8 +597,16 @@ if st.session_state['results'] is not None and not st.session_state['results'].e
         def create_chart(sym, height=350, show_slider=False):
             try:
                 ticker_symbol = f"{sym}.IS"
-                hist = yf.Ticker(ticker_symbol).history(period=period, interval=interval)
                 
+                # Retry logic for charts
+                hist = pd.DataFrame()
+                for attempt in range(3):
+                    try:
+                        hist = yf.Ticker(ticker_symbol).history(period=period, interval=interval)
+                        if not hist.empty: break
+                    except:
+                        time.sleep(1 + attempt)
+                        
                 if hist.empty: return None
 
                 # Create Figure

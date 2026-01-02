@@ -1,8 +1,0 @@
-fastapi
-uvicorn
-yfinance
-pandas
-pandas_ta
-openpyxl
-pytest
-httpx
