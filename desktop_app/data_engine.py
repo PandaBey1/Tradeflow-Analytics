@@ -36,8 +36,11 @@ def scan_market(tickers, status_callback=None):
     results = []
     processed_count = 0
     
-    # Smaller chunks to ensure UI updates and prevent stalling
-    CHUNK_SIZE = 10
+    import random
+    
+    # Chunk Size Strategy:
+    # 25 is a balanced number. Not too small to be slow, not too big to timeout.
+    CHUNK_SIZE = 25 
     
     # Split into chunks
     chunks = [tickers[i:i + CHUNK_SIZE] for i in range(0, len(tickers), CHUNK_SIZE)]
@@ -45,35 +48,54 @@ def scan_market(tickers, status_callback=None):
     from data_engine import INDEX_CHANGE_1D
     
     for chunk in chunks:
+        # RETRY LOGIC (3 Attempts)
+        success = False
+        attempts = 0
+        
+        while not success and attempts < 3:
+            try:
+                # 1. Bulk Download (Daily) for this chunk
+                df_daily_bulk = yf.download(
+                    chunk, 
+                    period="1y", 
+                    interval="1d", 
+                    group_by='ticker', 
+                    auto_adjust=True, 
+                    progress=False,
+                    threads=True
+                )
+                
+                # 2. Bulk Download (Hourly) for this chunk
+                df_hourly_bulk = yf.download(
+                    chunk, 
+                    period="1mo", 
+                    interval="60m", 
+                    group_by='ticker', 
+                    auto_adjust=True, 
+                    progress=False,
+                    threads=True
+                )
+                
+                # If we got here, downloads worked (even if some tickers failed individually)
+                success = True 
+                
+            except Exception as e:
+                attempts += 1
+                logger.error(f"Chunk failed (Attempt {attempts}/3): {e}")
+                time.sleep(5) # Penalty Wait
+        
+        # If still failed after 3 tries, skip this chunk
+        if not success:
+            processed_count += len(chunk)
+            if status_callback: status_callback(processed_count, total)
+            continue
+
+        # 3. Process Chunk locally
         try:
-            # 1. Bulk Download (Daily) for this chunk
-            # We enable threads here because 40 tickers is safe
-            df_daily_bulk = yf.download(
-                chunk, 
-                period="1y", 
-                interval="1d", 
-                group_by='ticker', 
-                auto_adjust=True, 
-                progress=False,
-                threads=True
-            )
-            
-            # 2. Bulk Download (Hourly) for this chunk
-            df_hourly_bulk = yf.download(
-                chunk, 
-                period="1mo", 
-                interval="60m", 
-                group_by='ticker', 
-                auto_adjust=True, 
-                progress=False,
-                threads=True
-            )
-            
-            # 3. Process Chunk locally
             for ticker in chunk:
+                # ... (Ticker processing logic remains same) ...
                 try:
                     # Daily Data Extraction
-                    # Handle single-ticker vs multi-ticker structure
                     if len(chunk) == 1:
                         df_daily = df_daily_bulk
                     else:
@@ -224,12 +246,12 @@ def scan_market(tickers, status_callback=None):
             if status_callback:
                 status_callback(processed_count, total)
                 
-            # Nice sleep to avoid hammering
-            time.sleep(2.0)
+            # Random Sleep to mimic human behavior (1-4 seconds)
+            sleep_time = random.uniform(1.0, 4.0)
+            time.sleep(sleep_time)
             
         except Exception as e:
-            logger.error(f"Chunk failed: {e}")
-            # Continue to next chunk even if this one fails
+            logger.error(f"Chunk processing failed: {e}")
             processed_count += len(chunk)
             if status_callback: status_callback(processed_count, total)
             
