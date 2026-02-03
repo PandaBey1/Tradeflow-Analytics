@@ -67,21 +67,38 @@ def scan_market(tickers, status_callback=None):
                         current_high = float(df_daily['High'].iloc[-1])
                         
                         # Indicators
-                        delta = df_daily['Close'].diff()
-                        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-                        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-                        rs = gain / (loss + 1e-9)
-                        df_daily['RSI'] = 100 - (100 / (1 + rs))
+                        # RSI (Wilder's Smoothing)
+                        df_daily['RSI'] = df_daily.ta.rsi(length=14)
                         
-                        tp = (df_daily['High'] + df_daily['Low'] + df_daily['Close']) / 3
-                        rmf = tp * df_daily['Volume']
-                        mf_up = rmf.where(tp > tp.shift(1), 0).rolling(14).mean()
-                        mf_down = rmf.where(tp < tp.shift(1), 0).rolling(14).mean()
-                        mfi = 100 - (100 / (1 + (mf_up / (mf_down + 1e-9))))
+                        # MFI (Money Flow Index)
+                        df_daily['MFI_VAL'] = df_daily.ta.mfi(length=14)
                         
+                        # ADX (Trend Strength)
+                        adx_df = df_daily.ta.adx(length=14)
+                        if adx_df is not None and not adx_df.empty:
+                            # pandas_ta returns columns like ADX_14, DMP_14, DMN_14. We need ADX_14.
+                            # Column name dynamic check
+                            adx_col = [c for c in adx_df.columns if c.startswith('ADX')][0]
+                            df_daily['ADX_VAL'] = adx_df[adx_col]
+                        else:
+                            df_daily['ADX_VAL'] = 0.0
+
+                        # Gap Up Calculation (> 1.75% from prev close)
+                        prev_close = float(df_daily['Close'].iloc[-2])
+                        open_price = float(df_daily['Open'].iloc[-1])
+                        gap_up = (open_price > prev_close * 1.0175)
+
+                        # Moving Averages
                         df_daily['MA21'] = df_daily['Close'].rolling(window=21).mean()
-                        change_1d = ((current_price - float(df_daily['Close'].iloc[-2])) / float(df_daily['Close'].iloc[-2])) * 100 if len(df_daily) > 1 else 0
                         
+                        change_1d = ((current_price - prev_close) / prev_close) * 100 if len(df_daily) > 1 else 0
+                        
+                        # Upper Wick Logic (Shadow)
+                        # (High - Close) / Price. A large upper wick means rejection.
+                        high_val = float(df_daily['High'].iloc[-1])
+                        close_val = current_price
+                        upper_wick_pct = ((high_val - close_val) / close_val) * 100
+
                         # Hourly
                         if len(chunk) == 1: df_hourly = df_hourly_bulk
                         else: df_hourly = df_hourly_bulk[ticker] if ticker in df_hourly_bulk else pd.DataFrame()
@@ -89,7 +106,10 @@ def scan_market(tickers, status_callback=None):
                         
                         rsi_60, ma5_dist, squeeze = 0.0, 0.0, "NORMAL"
                         if not df_hourly.empty and len(df_hourly) > 20:
-                            rsi_60 = float(ta.rsi(df_hourly['Close']).iloc[-1])
+                            rsi_60_series = df_hourly.ta.rsi(length=14)
+                            if rsi_60_series is not None:
+                                rsi_60 = float(rsi_60_series.iloc[-1])
+                                
                             ma5_h = ta.sma(df_hourly['Close'], 5)
                             if ma5_h is not None:
                                 mv = ma5_h.iloc[-1]
@@ -104,16 +124,18 @@ def scan_market(tickers, status_callback=None):
                             "Sonfiyat": current_price,
                             "Zirve": current_high,
                             "Gün Fark %": change_1d,
-                            "RVol": round(float(df_daily['Volume'].iloc[-1]) / df_daily['Volume'].rolling(10).mean().iloc[-1], 2),
+                            "RVol": round(float(df_daily['Volume'].iloc[-1]) / (df_daily['Volume'].rolling(20).mean().iloc[-1] + 1), 2),
                             "Ma5 S %": ma5_dist,
                             "RSI60": rsi_60,
                             "RSI240": 0.0,
-                            "RSIDAY": float(df_daily['RSI'].iloc[-1]),
-                            "MFI": float(mfi.iloc[-1]),
+                            "RSIDAY": float(df_daily['RSI'].iloc[-1] if not pd.isna(df_daily['RSI'].iloc[-1]) else 50.0),
+                            "MFI": float(df_daily['MFI_VAL'].iloc[-1] if 'MFI_VAL' in df_daily.columns and not pd.isna(df_daily['MFI_VAL'].iloc[-1]) else 50.0),
+                            "ADX": float(df_daily['ADX_VAL'].iloc[-1] if 'ADX_VAL' in df_daily.columns and not pd.isna(df_daily['ADX_VAL'].iloc[-1]) else 0.0),
+                            "U_Wick": upper_wick_pct,
                             "MA21": float(df_daily['MA21'].iloc[-1]),
                             "Squeeze": squeeze,
                             "StrongClose": (current_price - float(df_daily['Low'].iloc[-1])) / (current_high - float(df_daily['Low'].iloc[-1])) > 0.9 if current_high != float(df_daily['Low'].iloc[-1]) else False,
-                            "GapUp": False, "ClosePos": 0.0
+                            "GapUp": gap_up, "ClosePos": 0.0
                         })
                     except: continue
                 success = True
@@ -137,6 +159,4 @@ def scan_market(tickers, status_callback=None):
         for chunk in final_chunks:
             process_chunk(chunk, results)
 
-    return pd.DataFrame(results)
-            
     return pd.DataFrame(results)

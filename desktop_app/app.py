@@ -23,8 +23,8 @@ with st.sidebar:
     
     # Filter Inputs
     st.markdown("#### 🔍 SİNYAL FİLTRELERİ")
-    min_score = st.slider("Min Panda Puanı", 0, 100, 50, help="Listelenen hisseler için minimum kalite puanı.")
-    min_rsi = st.slider("Min RSI (Günlük)", 30, 70, 50, help="Daha düşük değerler 'Ucuz', yüksek değerler 'Momentum' arar.")
+    min_score = st.slider("Min Panda Puanı", 0, 100, 40, help="Listelenen hisseler için minimum kalite puanı.")
+    min_rsi = st.slider("Min RSI (Günlük)", 30, 70, 45, help="Daha düşük değerler 'Ucuz', yüksek değerler 'Momentum' arar.")
     min_mfi = st.slider("Min Para Girişi (MFI)", 20, 90, 50, help="Para girişi olmayan hisseleri eler.")
     
     st.markdown("---")
@@ -294,37 +294,76 @@ with col_main:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# --- EDUCATIONAL GUIDE (VISIBLE ALWAYS) ---
-with st.expander("❓ SİNYAL STRATEJİLERİ VE TEKNİK REHBER (TIKLA ÖĞREN)", expanded=False):
-    g1, g2 = st.columns(2)
+# --- EDUCATIONAL GUIDE (BEGINNER FRIENDLY) ---
+with st.expander("❓ SİNYAL STRATEJİLERİ VE TEKNİK SÖZLÜK (DETAYLI ANLATIM)", expanded=False):
+    st.markdown("""
+    ### 🎓 BORSA TERİMLERİ VE SİNYAL REHBERİ
+    Bu bölüm, tabloda gördüğünüz terimlerin ne anlama geldiğini **hiç bilmeyenler için** basitleştirerek anlatır.
+    """)
     
-    with g1:
-        st.markdown("#### 🎯 STRATEJİ ETİKETLERİ")
+    st.markdown("---")
+    
+    col_guide1, col_guide2 = st.columns(2)
+    
+    with col_guide1:
+        st.markdown("#### 🏷️ SİNYAL ETİKETLERİ (TABLODA NE GÖRÜYORSUNUZ?)")
+        
         st.info("""
-        **💎 ELITE (100+ Puan):** Listenin zirvesi. Teknik, Hacim ve Trend kusursuz.
+        **💎 ELITE (ŞAMPİYON):**
+        Listenin en iyisi. Hem hacim var, hem para girişi var, hem de teknik göstergeler kusursuz. "Yıldız" adaydır.
         
-        **💎 SUPER SQ:** "Barut Fıçısı". Bantlar aşırı daraldı, patlama an meselesi (Sargı).
+        **🐳 WHALE (BALİNA GİRİŞİ):**
+        Hisseye aniden devasa bir para/hacim girmiş (Normalin 3 katı). Genelde "Büyük Oyuncular" (Balinalar) alım yaptığında çıkar. Yükseliş habercisi olabilir.
         
-        **🚀 TARGET:** Yükseliş trendine girmiş güçlü ve hacimli aday.
+        **💎 SUPER SQ (BARUT FIÇISI):**
+        Sıkışma Sinyali. Fiyat uzun süredir dar bir bantta hareket etmiş, enerji biriktirmiş. Yay gerilmiş, bir yöne (genelde yukarı) sert patlama yapabilir.
         
-        **🔥 MARUBOZU:** Tavan/Zirve kapanış. Alıcılar çok iştahlı.
-        
-        **⚡ GAP UP:** Sabah açılışta yukarı sert boşluklu (%1+) açanlar.
-        """)
+        **SQUEEZE (SIKIŞMA):**
+        "Super SQ" kadar olmasa da fiyatın daraldığını ve bir hareket hazırlığında olduğunu gösterir. Bolinger bantları daralmıştır.
 
-    with g2:
-        st.markdown("#### 📈 TEKNİK VERİLER")
-        st.success("""
-        **🐳 WHALE (BALİNA):** Hacim ortalamanın 3 katına (3x) çıkmış! Büyük oyuncu alarmı.
+        **🚀 TARGET (HEDEFE GİDEN):**
+        Teknik olarak yükseliş trendine girmiş, önü açık ve güçlenen hisseler.
         
-        **💰 MFI (PARA):** 60 üstü ise hisseye "Gerçek Para" giriyor demektir.
+        **🔥 MARUBOZU (GÜÇLÜ KAPANIŞ):**
+        Hisse günü "tavandan" veya "en yüksek fiyattan" kapatmış. Satıcılar bitmiş, alıcılar hala almak istiyor. Ertesi gün için güçlü bir sinyaldir.
         
-        **📊 HACİM KAT:** 1.5x = İlgi Artışı, 3.0x = Balina Girişi.
+        **⚡ GAP UP (BOŞLUKLU AÇILIŞ):**
+        Hisse sabah açılırken, dünkü kapanış fiyatının "üstünden" başlamış. Yani alıcılar gece sıraya girmiş. Çok güçlü bir istektir.
         
-        **📏 ORT. UZAKLIK:** Fiyat ortalamadan %5-10 kopmuşsa düzeltme riski artar.
-        
-        **🏆 PANDA PUANI:** Yapay zekanın tüm verileri harmanlayıp verdiği not.
+        **🏔️ ATH (ZİRVE - ALL TIME HIGH):**
+        Hisse tarihinin en yüksek fiyatında veya oraya çok yakın. Önünde "direnç" (satıcı duvarı) yok, önü açık.
+
+        **👀 WATCH (İZLEME LİSTESİ):**
+        Hisse henüz "AL" sinyali yakmamış ama radara girmiş. Hazırlık aşamasında olabilir, yakından takip edilmelidir.
         """)
+        
+    with col_guide2:
+        st.markdown("#### 📊 TEKNİK GÖSTERGELER (SAYILAR NE DİYOR?)")
+        
+        st.success("""
+        **RSI (HIZ GÖSTERGESİ):**
+        Arabanın hız kadranı gibidir. 
+        *   **30 Altı:** Çok ucuzlamış (Alım fırsatı olabilir).
+        *   **70 Üstü:** Çok hızlanmış/pahalılanmış (Motor ısınabilir).
+        *   **50-70 Arası:** İdeal Hız. Yükseliş için en sağlıklı bölge.
+        
+        **MFI (PARA GİRİŞİ):**
+        Hisseye giren paranın gücünü ölçer.
+        *   **50 Üstü:** Para giriyor.
+        *   **80 Üstü:** ÇILGIN PARA GİRİŞİ. (Çok güçlü ama dikkatli olunmalı).
+        
+        **HACİM KAT (RVol):**
+        "Bugün ilgi ne kadar?" sorusunun cevabıdır.
+        *   **1.0x:** Normal ilgi.
+        *   **2.0x:** Düne göre 2 kat ilgi var.
+        *   **3.0x ve üstü:** Olağanüstü ilgi (Balina Sinyali).
+        
+        **ORT. UZAKLIK (MA5):**
+        Fiyatın kısa vadeli ortalamadan ne kadar kaçtığını gösterir. Fiyat ortalamadan çok uzaklaşırsa, geri dönüp dinlenmek isteyebilir. %0 ile %3 arası sağlıklı yükseliştir.
+        """)
+    
+    st.markdown("---")
+    st.caption("💡 İPUCU: Bu sinyaller tek başına 'AL' emri değildir. Hepsini bir arada değerlendirerek daha isabetli kararlar verebilirsiniz.")
 
 # -- SCANNING LOGIC --
 if st.session_state['scanning']:
@@ -357,65 +396,74 @@ if st.session_state['scanning']:
             # --- EDUCATIONAL GUIDE ---
 
 
-            # --- PANDA MOMENTUM SCORING ENGINE (STRICT MODE) ---
+            # --- PANDA MOMENTUM SCORING ENGINE (ACCURATE MODE) ---
             def calculate_panda_score(row):
                 # 1. HARD FİLTRELER (Bunları geçemeyen LİSTEYE GİREMEZ)
                 # Amacımız: Sadece Yükseliş Trendinde (Momentum) olanları bulmak.
                 
-                # A) MA5 Filtresi (Saatlik): Fiyat ortalamanın üzerinde olmalı
+                # A) MA5 Filtresi (Saatlik): Fiyat ortalamanın üzerinde olmalı (Momentum Check)
                 ma5_dist = row.get('Ma5 S %', 0)
-                if ma5_dist < 0.0: return 0  # MA5 Altındaysa TÖLERANS YOK, puan 0.
+                if ma5_dist < -1.0: return 0  # %1 esneklik tanıdık, altındaysa puan 0.
                 
-                # B) RSI Filtreleri: Hem Günlük hem Saatlik "Güçlü" bölgede olmalı (50+)
+                # B) RSI Filtreleri: Hem Günlük hem Saatlik "Güçlü" bölgede olmalı
                 rsi_day = row.get('RSIDAY', 0)
                 rsi_60 = row.get('RSI60', 0)
-                rsi_240 = row.get('RSI240', 0)
                 
-                if rsi_day < 50: return 0   # Günlük trend zayıfsa ele
-                if rsi_60 < 50: return 0    # Saatlik (kısa vade) zayıfsa ele
+                if rsi_day < 45: return 0   # RSI 45 altı zayıf trend
                 
-                # --- PUANLAMA (PRECISION MODE) ---
-                score = 50 
+                # --- PUANLAMA (BALANCED MODE) ---
+                score = 40  # Taban puanı düşürdüm (Eskisi 50 idi)
                 
-                # 1. Hacim Desteği (Sertleştirilmiş)
+                # 1. Hacim Desteği (RVol)
                 rvol = row.get('RVol', 0)
-                if rvol > 3.0: score += 25  # Balina Girişi
-                elif rvol > 1.5: score += 15
+                if rvol > 3.0: score += 20  # Balina (Aşırı yüksek hacim)
+                elif rvol > 1.5: score += 10 # İyi hacim
                 
-                # 2. Sıkışma (Patlama Potansiyeli)
+                # 2. Sıkışma (Squeeze)
                 sq = row.get('Squeeze')
-                if sq == "SUPER SQUEEZE": score += 35 # Tetik çekilmek üzere
-                elif sq == "SQUEEZE": score += 20
+                if sq == "SUPER SQUEEZE": score += 25
+                elif sq == "SQUEEZE": score += 15
                 
-                # 3. Gap Up (Boşluklu Açılış) - Yeni
-                if row.get('GapUp', False): score += 20
+                # 3. Gap Up
+                if row.get('GapUp', False): score += 10
                 
-                # 4. RSI Momentum (60-70 bölgesi en verimli)
+                # 4. RSI Momentum (Puanı azalttım)
                 if 55 <= rsi_day <= 75: score += 10
                 
                 # 5. Endeks Üzeri Getiri
-                if row.get('Gün Fark %', 0) > idx_ch: score += 10
+                if row.get('Gün Fark %', 0) > idx_ch: score += 5
                 
-                # 6. Zirve Yakınlığı
+                # 6. Zirve Yakınlığı (ATH)
                 price = row.get('Sonfiyat', 0)
                 high = row.get('Zirve', 0)
                 if price > 0:
                     dist_to_high = ((high - price) / price) * 100
-                    if dist_to_high < 1.0: score += 15
-                    elif dist_to_high < 3.0: score += 5
+                    if dist_to_high < 2.0: score += 10
                 
                 # 7. Strong Close & Marubozu
-                if row.get('StrongClose', False): score += 20
+                if row.get('StrongClose', False): score += 10
                 
                 # 8. MFI (Money Flow)
                 mfi = row.get('MFI', 50)
-                if mfi > 80: score += 15 
-                elif mfi > 60: score += 10
+                if mfi > 80: score += 10 
+                elif mfi > 60: score += 5
                 
                 # 9. TREND (MA5 > MA21)
-                ma5 = row.get('Sonfiyat', 0) / (1 + (ma5_dist/100))
                 ma21 = row.get('MA21', 0)
-                if ma21 > 0 and ma5 > ma21: score += 15
+                if ma21 > 0 and price > ma21: score += 5
+                
+                # 10. TREND GÜCÜ (ADX > 25) - YENİ
+                # Trendin "kalitesini" ölçer.
+                adx = row.get('ADX', 0)
+                if adx > 25: score += 10
+                elif adx > 20: score += 5
+
+                # 11. TUZAK KONTROLÜ (WICK REJECTION) - YENİ
+                # Eğer yukarıda çok uzun bir fitil varsa, satıcı baskısı var demektir.
+                # Fake yükselişleri engeller.
+                u_wick = row.get('U_Wick', 0)
+                if u_wick > 2.5: score -= 15 # Ciddi satış yemiş
+                elif u_wick > 1.5: score -= 5
                 
                 return min(score, 100) # Cap at 100
 
@@ -426,8 +474,8 @@ if st.session_state['scanning']:
             # Ensure RSIDAY exists for fallback
             if 'RSIDAY' not in df_results.columns: df_results['RSIDAY'] = 0.0
             
-            # Filter: Loosened to 5 pts
-            df_final_filtered = df_results[df_results['Skor'] >= 5].copy()
+            # Filter: Min 40 Score to show roughly decent stocks
+            df_final_filtered = df_results[df_results['Skor'] >= 40].copy()
             
             if df_final_filtered.empty:
                 st.warning(f"SCAN COMPLETED: {success_count} tickers analyzed. No strict signals detected. Reviewing market strength.")
@@ -458,7 +506,7 @@ if st.session_state['scanning']:
 
                 df_final['Analiz'] = df_final.apply(generate_ai_note, axis=1)
             
-            display_cols = ['Sembol', 'Sonfiyat', 'Skor', 'Gün %', 'Analiz', 'MFI', 'Ma5 S %', 'RVol', 'RSI60', 'RSI240']
+            display_cols = ['Sembol', 'Sonfiyat', 'Skor', 'Gün %', 'Analiz', 'MFI', 'Ma5 S %', 'RVol', 'RSI60']
             for c in display_cols:
                 if c not in df_final.columns: df_final[c] = 0.0
 
@@ -527,7 +575,7 @@ if st.session_state['results'] is not None and not st.session_state['results'].e
                      .map(style_score, subset=['Skor'])\
                      .map(style_change, subset=['Gün %'])\
                      .map(style_change, subset=['Gün %'])\
-                     .format("{:.2f}", subset=['Sonfiyat', 'Ma5 S %', 'RVol', 'RSI60', 'RSI240'])\
+                     .format("{:.2f}", subset=['Sonfiyat', 'Ma5 S %', 'RVol', 'RSI60'])\
                      .format("{:.0f}", subset=['MFI'])
     
     st.dataframe(
@@ -543,7 +591,6 @@ if st.session_state['results'] is not None and not st.session_state['results'].e
             "MFI": st.column_config.NumberColumn("PARA GİRİŞİ (MFI)", format="%d", help="60 üstü: Para Girişi Var, 80 üstü: Güçlü Para Girişi"),
             "Ma5 S %": st.column_config.NumberColumn("ORT. UZAKLIK %", format="%.2f", help="Fiyatın 5 saatlik ortalamadan uzaklığı"),
             "RSI60": st.column_config.NumberColumn("RSI 1S", format="%.1f"),
-            "RSI240": st.column_config.NumberColumn("RSI 4S", format="%.1f"),
         }
     )
     
