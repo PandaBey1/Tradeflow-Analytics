@@ -11,20 +11,20 @@ TradeFlow Analytics, Borsa İstanbul (BIST) hisselerini TradingView destekli can
 
 ## 🌟 YENİ EKLENEN ÖZELLİKLER (v0.6)
 
-### 1. 🗺️ Dinamik Sektör Analizi (Heatmap)
+### 1. 🇹🇷 Tamamen Türkçeleştirilmiş Profesyonel Arayüz
+Borsa analiz sürecinde kullanılan tüm modüller, göstergeler, menüler ve sinyal açıklamaları global standartlara uygun profesyonel Türkçe piyasa dili ile güncellendi.
+
+### 2. ⚡️ Geliştirilmiş Performans Motoru (Global Scope Optimizasyonu)
+Tarama motorunda yapılan yenilikler sayesinde `app.py`, `data_engine.py` ve `ticker_source.py` dosyalarında kod temizliği yapılarak fonksiyon tekrarları silindi. Bu, hem tarama hızını artırdı hem de sistemin API Rate limitlerine takılmasını önleyen (120 sn. Cooldown) güvenlik modüllerinin eklenmesini sağladı. 
+
+### 3. 🎨 Kusursuz Karanlık Mod (Dark Mode) ve UI Deneyimi
+Yeni sürüm ile `Karanlık Mod Focus` toggle yapısı arayüze tam entegre edildi. Gece işlemlerinde veya uzun analiz maratonlarında gözü yormayan "Sniper" (Glassmorphism) tasarım konseptine geçildi.
+
+### 4. 🗺️ Dinamik Sektör Analizi (Heatmap)
 Artık piyasanın genel yönünü tek bakışta görebilirsiniz.
 *   **Renkli Isı Haritası:** Yükselen sektörler **yeşil**, düşenler **kırmızı** kutularla gösterilir.
 *   **Detaylı Kırılım:** "Bankacılık", "Ulaştırma", "Enerji" gibi Türkçeleştirilmiş sektör başlıkları.
 *   **Akıllı Filtreleme:** Bir sektöre tıkladığınızda sadece o sektörün en iyi hisselerini listeler.
-
-### 2. 🌊 Dinamik Veri Akışı
-*   **TradingView Entegrasyonu:** Hisseleri Excel listesinden değil, **doğrudan kaynağından** çeker.
-*   **Otomatik Güncelleme:** Yeni halka arzlar ve listeden çıkanlar sisteme otomatik yansır.
-*   **Python Sözlük Yapısı:** Veri kaybını önleyen sağlamlaştırılmış altyapı.
-
-### 3. 🎨 Premium Terminal Arayüzü
-*   **Bloomberg Tarzı UI:** Koyu mod, "Glassmorphism" kartlar ve nizami hizalanmış göstergeler.
-*   **Gelişmiş Tablo:** `st.dataframe` üzerinde özelleştirilmiş sütunlar (Stop Loss / Hedef kaldırıldı - Sadece Temiz Veri).
 
 ---
 
