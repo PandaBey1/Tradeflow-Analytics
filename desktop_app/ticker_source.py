@@ -78,9 +78,8 @@ def fetch_tickers_from_tradingview():
                     clean_sym = symbol.split(":")[-1]
                     # Translate
                     if sector is None: sector = "Genel"
-                    
-                    # Güvenlik: Sektör adlarını HTML-escape (XSS koruması)
-                    sector = html.escape(SECTOR_TRANSLATION_MAP.get(sector, sector))
+                    # Sektör çevirisi (app.py'de zaten HTML escape ediliyor, o yüzden UI'da çirkinleşmemesi için burada escapei kaldırdık)
+                    sector = SECTOR_TRANSLATION_MAP.get(sector, sector)
                     
                     ticker_map[f"{clean_sym}.IS"] = sector
         

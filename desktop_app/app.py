@@ -30,8 +30,8 @@ def calculate_tradeflow_score(row, idx_ch):
     elif rvol > 1.5: score += 10
     
     sq = row.get('Squeeze')
-    if sq == "SUPER SQUEEZE": score += 25
-    elif sq == "SQUEEZE": score += 15
+    if sq == "SUPER SQUEEZE": score += 15
+    elif sq == "SQUEEZE": score += 10
     
     if row.get('GapUp', False): score += 10
     
