@@ -333,7 +333,7 @@ st.markdown(f"""
 st.markdown("""
     <div class="header-container">
         <h1 class="terminal-title">TRADEFLOW ANALYTICS <span style="opacity:0.3; font-weight:300;">//</span> v0.6</h1>
-        <p class="terminal-subtitle">Yüksek Frekanslı Momentum ve Sektör İstihbaratı</p>
+        <p class="terminal-subtitle">Yüksek Frekanslı Momentum ve Sektörel Analiz</p>
     </div>
 """, unsafe_allow_html=True)
 
