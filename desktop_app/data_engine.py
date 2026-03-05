@@ -1,8 +1,8 @@
 import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
-import concurrent.futures
 import time
+import random
 import logging
 
 # Setup logging
@@ -32,16 +32,21 @@ def scan_market(tickers, status_callback=None):
     Scans list of tickers using CHUNKED bulk download.
     Processing 40 tickers at a time prevents timeouts and hanging.
     """
-    total = len(tickers)
-    results = []
-    processed_count = 0
-    import random
+    # Handle Dict vs List input
+    if isinstance(tickers, dict):
+        ticker_list = list(tickers.keys())
+        ticker_sectors = tickers
+    else:
+        ticker_list = tickers
+        ticker_sectors = {t: "Unknown" for t in tickers}
+        
+    total = len(ticker_list)
     results = []
     processed_count = 0
     failed_tickers = []
     
     CHUNK_SIZE = 25 
-    chunks = [tickers[i:i + CHUNK_SIZE] for i in range(0, len(tickers), CHUNK_SIZE)]
+    chunks = [ticker_list[i:i + CHUNK_SIZE] for i in range(0, len(ticker_list), CHUNK_SIZE)]
     
     def process_chunk(chunk, current_results):
         nonlocal processed_count
@@ -121,6 +126,7 @@ def scan_market(tickers, status_callback=None):
                         
                         current_results.append({
                             "Sembol": ticker.replace(".IS", ""),
+                            "Sektor": ticker_sectors.get(ticker, "Unknown"),
                             "Sonfiyat": current_price,
                             "Zirve": current_high,
                             "Gün Fark %": change_1d,
@@ -137,10 +143,13 @@ def scan_market(tickers, status_callback=None):
                             "StrongClose": (current_price - float(df_daily['Low'].iloc[-1])) / (current_high - float(df_daily['Low'].iloc[-1])) > 0.9 if current_high != float(df_daily['Low'].iloc[-1]) else False,
                             "GapUp": gap_up, "ClosePos": 0.0
                         })
-                    except: continue
+                    except Exception as e:
+                        logger.debug(f"Error processing ticker {ticker}: {e}")
+                        continue
                 success = True
                 time.sleep(random.uniform(1.2, 2.2))
-            except:
+            except Exception as e:
+                logger.error(f"Error processing chunk: {e}")
                 attempts += 1
                 time.sleep(attempts * 5)
         return success

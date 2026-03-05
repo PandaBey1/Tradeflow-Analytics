@@ -1,11 +1,111 @@
+
+import requests
+import html
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.ERROR)
+logger = logging.getLogger(__name__)
+
+def fetch_tickers_from_tradingview():
+    """
+    Fetches the comprehensive list of active BIST stocks AND their sectors from TradingView Scanner API.
+    Returns: dict { 'THYAO.IS': 'Transportation', 'GARAN.IS': 'Finance', ... }
+    """
+    try:
+        url = "https://scanner.tradingview.com/turkey/scan"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        # Added "sector" to columns
+        payload = {
+            "filter": [
+                {"left": "type", "operation": "in_range", "right": ["stock", "dr"]},
+                {"left": "exchange", "operation": "equal", "right": "BIST"},
+                {"left": "subtype", "operation": "in_range", "right": ["common", "preference"]} # Exclude warrants/funds if needed
+            ],
+            "options": {"lang": "tr"},
+            "symbols": {"query": {"types": []}},
+            "columns": ["name", "close", "volume", "sector"], 
+            "sort": {"sortBy": "volume", "sortOrder": "desc"},
+            "range": [0, 600] # Cap at top 600 liquid stocks
+        }
+        
+        response = requests.post(url, headers=headers, json=payload, timeout=5)
+        
+        if response.status_code != 200:
+            return {}
+        
+        # Güvenlik: Yanıt boyutu kontrolü (5MB limit — Memory Exhaustion koruması)
+        if len(response.content) > 5 * 1024 * 1024:
+            logger.error("API response too large, aborting for safety")
+            return {}
+            
+        data = response.json()
+        ticker_map = {}
+        
+        # Translation Map
+        SECTOR_TRANSLATION_MAP = {
+            "Transportation": "Ulaştırma",
+            "Finance": "Bankacılık & Finans",
+            "Consumer Non-Durables": "Gıda & Tüketim",
+            "Consumer Durables": "Dayanıklı Tüketim",
+            "Energy Minerals": "Enerji",
+            "Process Industries": "Kimya & Sanayi",
+            "Utilities": "Kamu Hizmetleri (Elektrik/Su)",
+            "Retail Trade": "Perakende Ticaret",
+            "Health Technology": "Sağlık & İlaç",
+            "Technology Services": "Teknoloji & Yazılım",
+            "Electronic Technology": "Elektronik",
+            "Commercial Services": "Ticari Hizmetler",
+            "Consumer Services": "Hizmet Sektörü",
+            "Non-Energy Minerals": "Madencilik",
+            "Industrial Services": "Endüstriyel Hizmetler",
+            "Producer Manufacturing": "İmalat Sanayi",
+            "Communications": "İletişim",
+            "Health Services": "Sağlık Hizmetleri",
+            "Distribution Services": "Dağıtım & Lojistik",
+            "Miscellaneous": "Diğer"
+        }
+        
+        if 'data' in data:
+            for item in data['data']:
+                # d[0] = name, d[1] = close, d[2] = volume, d[3] = sector
+                symbol = item.get('d', [])[0]
+                sector = item.get('d', [])[3] if len(item.get('d', [])) > 3 else "Genel"
+                
+                if symbol:
+                    clean_sym = symbol.split(":")[-1]
+                    # Translate
+                    if sector is None: sector = "Genel"
+                    
+                    # Güvenlik: Sektör adlarını HTML-escape (XSS koruması)
+                    sector = html.escape(SECTOR_TRANSLATION_MAP.get(sector, sector))
+                    
+                    ticker_map[f"{clean_sym}.IS"] = sector
+        
+        return ticker_map
+    except Exception as e:
+        logger.error(f"TradingView Fetch Error: {e}")
+        return {}
+
 def get_all_bist_tickers():
     """
-    Returns a comprehensive list of BIST tickers.
-    Currently hardcoded/simulated for stability.
+    Returns a comprehensive dict of BIST tickers with sector info.
+    Strategy:
+    1. Try to fetch dynamic list from TradingView (Most accurate & up-to-date)
+    2. Fallback to Hardcoded List (Reliable backup)
     """
+    
+    # 1. Dynamic Fetch
+    dynamic_map = fetch_tickers_from_tradingview()
+    if dynamic_map and len(dynamic_map) > 400:
+        return dynamic_map
+    
+    # 2. Fallback Hardcoded
     # This list ideally should be dynamically fetched.
     # Here is a robust starting list including BIST 100 and more.
-    tickers = [
+    tickers_fallback = [
         "ACSEL.IS", "ADEL.IS", "ADESE.IS", "AEFES.IS", "AFYON.IS", "AGESA.IS", "AGHOL.IS", "AGYO.IS", "AKBNK.IS", "AKCNS.IS",
         "AKENR.IS", "AKFGY.IS", "AKGRT.IS", "AKMGY.IS", "AKSA.IS", "AKSEN.IS", "AKSGY.IS", "AKSUE.IS", "ALARK.IS", "ALBRK.IS",
         "ALCAR.IS", "ALCTL.IS", "ALFAS.IS", "ALGYO.IS", "ALKA.IS", "ALKIM.IS", "ALMAD.IS", "ALTNY.IS", "ANACM.IS", "ANELE.IS",
@@ -57,9 +157,8 @@ def get_all_bist_tickers():
         "ULUUN.IS", "UMPAS.IS", "UNLU.IS", "USAK.IS", "UZERB.IS", "VAKBN.IS", "VAKFN.IS", "VAKKO.IS", "VANGD.IS", "VBTYZ.IS",
         "VERUS.IS", "VESBE.IS", "VESTL.IS", "VKFYO.IS", "VKGYO.IS", "VKING.IS", "YAPRK.IS", "YATAS.IS", "YAYLA.IS", "YEOTK.IS",
         "YESIL.IS", "YGGYO.IS", "YGGCY.IS", "YGYO.IS", "YKBNK.IS", "YKSLN.IS", "YUNSA.IS", "YYAPI.IS", "YYLGD.IS", "ZEDUR.IS",
-        "ZOREN.IS", "ZRGYO.IS",
-        "BIGTK.IS", "TEHOL.IS", "ALKLC.IS", "GIPTA.IS", 
-        "MANAS.IS", "DMSAS.IS", "DITAS.IS", "COSMO.IS", "ATEKS.IS", "PKART.IS", "BURVA.IS", "EDATA.IS", "PEKGY.IS", "EUPWR.IS", "CVKMD.IS", "POLTK.IS",
-        "ONCSM.IS", "SDTTR.IS", "MIATK.IS", "DOBUR.IS", "FONET.IS", "VBTYZ.IS", "REEDR.IS", "KBORU.IS", "TARKM.IS"
+        "ZOREN.IS", "ZRGYO.IS", "BIGTK.IS", "TEHOL.IS", "ALKLC.IS", "GIPTA.IS", "MANAS.IS", "DMSAS.IS", "DITAS.IS", "COSMO.IS",
+        "ATEKS.IS", "PKART.IS", "BURVA.IS", "EDATA.IS", "PEKGY.IS", "EUPWR.IS", "CVKMD.IS", "POLTK.IS", "ONCSM.IS", "SDTTR.IS",
+        "MIATK.IS", "DOBUR.IS", "FONET.IS", "VBTYZ.IS", "REEDR.IS", "KBORU.IS", "TARKM.IS"
     ]
-    return list(set(tickers))
+    return {t: "Unknown" for t in tickers_fallback}

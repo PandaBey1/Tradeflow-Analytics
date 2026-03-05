@@ -1,29 +1,51 @@
-# 🐼 PANDA QUANTUM v0.5 
+# TRADEFLOW ANALYTICS v0.6 (Sector Intelligence Edition)
 
-**High-Frequency Momentum Intelligence for BIST 100+**
+**BIST 100+ İçin Yeni Nesil Momentum & Sektör Analiz Terminali**
 
-Panda Quantum, Borsa İstanbul (BIST) hisselerini yapay zeka destekli teknik analiz yöntemleriyle tarayan, anlık momentum ve fırsat sinyalleri üreten gelişmiş bir borsa analiz aracıdır.
+TradeFlow Analytics, Borsa İstanbul (BIST) hisselerini TradingView destekli canlı verilerle tarayan, sektör rotasyonlarını analiz eden ve yapay zeka destekli momentum sinyalleri üreten profesyonel bir borsa analiz terminalidir.
 
-![Panda Quantum](https://img.shields.io/badge/Status-Active-success)
-![Python](https://img.shields.io/badge/Built%20With-Python%20%7C%20Streamlit-blue)
+![Status](https://img.shields.io/badge/Status-v0.6%20Stable-success)
+![Data](https://img.shields.io/badge/Data-TradingView%20%7C%20Yahoo-blueviolet)
 
-## 🚀 Özellikler (Sniper Modu)
+---
 
-*   **💎 ELITE Analiz:** Teknik, Hacim ve Trendin kusursuz olduğu "Şampiyon" hisseleri bulur.
-*   **🐳 WHALE (Balina) Dedektörü:** Ortalamanın 3 katı (3x) hacim girişi olan hisseleri yakalar.
-*   **💎 SUPER SQUEEZE:** Bollinger bantlarının aşırı daraldığı (patlama potansiyeli olan) hisseleri tespit eder.
-*   **⚡ GAP UP:** Sabah açılışta yukarı yönlü sert boşluk bırakanları (>%1) listeler.
-*   **🔥 MARUBOZU:** Tavan veya zirveye yakın güçlü kapanış yapanları belirler.
-*   **💰 Para Girişi (MFI):** Hissede "Gerçek Para" girişi olup olmadığını analiz eder.
+## 🌟 YENİ EKLENEN ÖZELLİKLER (v0.6)
 
-## 🛠️ Kurulum ve Çalıştırma (Kendi Bilgisayarınızda)
+### 1. 🗺️ Dinamik Sektör Analizi (Heatmap)
+Artık piyasanın genel yönünü tek bakışta görebilirsiniz.
+*   **Renkli Isı Haritası:** Yükselen sektörler **yeşil**, düşenler **kırmızı** kutularla gösterilir.
+*   **Detaylı Kırılım:** "Bankacılık", "Ulaştırma", "Enerji" gibi Türkçeleştirilmiş sektör başlıkları.
+*   **Akıllı Filtreleme:** Bir sektöre tıkladığınızda sadece o sektörün en iyi hisselerini listeler.
+
+### 2. 🌊 Dinamik Veri Akışı
+*   **TradingView Entegrasyonu:** Hisseleri Excel listesinden değil, **doğrudan kaynağından** çeker.
+*   **Otomatik Güncelleme:** Yeni halka arzlar ve listeden çıkanlar sisteme otomatik yansır.
+*   **Python Sözlük Yapısı:** Veri kaybını önleyen sağlamlaştırılmış altyapı.
+
+### 3. 🎨 Premium Terminal Arayüzü
+*   **Bloomberg Tarzı UI:** Koyu mod, "Glassmorphism" kartlar ve nizami hizalanmış göstergeler.
+*   **Gelişmiş Tablo:** `st.dataframe` üzerinde özelleştirilmiş sütunlar (Stop Loss / Hedef kaldırıldı - Sadece Temiz Veri).
+
+---
+
+## 🚀 ÇEKİRDEK ÖZELLİKLER (Sinyal Motoru)
+
+*   **💎 ELITE Skoru:** Teknik, Hacim ve Trendin kusursuz olduğu hisseleri puanlar (0-100).
+*   **🐳 WHALE (Balina):** Hacmin ortalamanın 3 katına (3x) çıktığı hisseleri yakalar.
+*   **💎 SUPER SQUEEZE:** Bollinger bantlarının daraldığı, patlamaya hazır hisseleri bulur.
+*   **⚡ GAP UP & MARUBOZU:** Güçlü açılış ve kapanışları tespit eder.
+*   **💰 Para Girişi (MFI):** Gerçek para girişini (Smart Money) analiz eder.
+
+---
+
+## 🛠️ KURULUM VE ÇALIŞTIRMA
 
 Bu projeyi kendi bilgisayarınızda çalıştırmak için:
 
-1.  **Repoyu Klonlayın:**
+1.  **Repoyu İndirin:**
     ```bash
-    git clone https://github.com/KULLANICI_ADINIZ/panda-quantum.git
-    cd panda-quantum
+    git clone https://github.com/KULLANICI_ADINIZ/tradeflow-analytics.git
+    cd tradeflow-analytics
     ```
 
 2.  **Gerekli Kütüphaneleri Yükleyin:**
@@ -32,24 +54,24 @@ Bu projeyi kendi bilgisayarınızda çalıştırmak için:
     ```
 
 3.  **Uygulamayı Başlatın:**
+    Terminalde şu komutu çalıştırın:
     ```bash
     streamlit run desktop_app/app.py
     ```
 
-## ☁️ Streamlit Cloud ile Yayına Alma (Deploy)
+---
 
-Bu projeyi arkadaşlarınızla paylaşmak için en kolay yol **Streamlit Cloud** kullanmaktır:
+## 📁 PROJE YAPISI (Geliştirici Notları)
 
-1.  Bu projeyi kendi **GitHub** hesabınıza yükleyin.
-2.  [share.streamlit.io](https://share.streamlit.io/) adresine gidin ve GitHub hesabınızla giriş yapın.
-3.  **"New App"** butonuna tıklayın.
-4.  GitHub reponuzu seçin.
-5.  **Main file path** kısmına şunu yazın: `desktop_app/app.py`
-6.  **Deploy!** butonuna basın.
-
-## ⚠️ Yasal Uyarı
-
-Bu yazılım sadece **eğitim ve analiz amaçlıdır**. Buradaki veriler ve sinyaller **yatırım tavsiyesi değildir**. Finansal kararlarınızı kendi araştırmanıza göre veriniz.
+*   `desktop_app/app.py`: Ana arayüz kodu. Streamlit görselleştirmeleri ve Sektör Haritası mantığı burada.
+*   `desktop_app/data_engine.py`: Yahoo Finance veri çekme, teknik analiz hesaplamaları (RSI, MA, Bollinger).
+*   `desktop_app/ticker_source.py`: **TradingView API** bağlantısı ve Sektör Türkçeleştirme haritası.
 
 ---
-*Powered by AntiGravity & Panda AI* 🐼
+
+## ⚠️ YASAL UYARI
+
+Bu yazılım **eğitim ve analiz amaçlıdır**. Üretilen sinyaller, puanlar ve veriler **yatırım tavsiyesi değildir**. Finansal kararlarınızı kendi araştırmanıza göre veriniz.
+
+---
+*Powered by AntiGravity & TradeFlow AI*�

@@ -1,8 +1,10 @@
-streamlit
-yfinance
-pandas
-pandas_ta
-openpyxl
-requests
-watchdog
-xlsxwriter
+# Versiyonlar sabitlendi — Supply Chain Attack koruması
+streamlit>=1.40.0,<2.0.0
+yfinance>=0.2.40,<1.0.0
+pandas>=2.1.0,<3.0.0
+pandas_ta>=0.3.14b1,<1.0.0
+openpyxl>=3.1.0,<4.0.0
+requests>=2.31.0,<3.0.0
+watchdog>=4.0.0,<7.0.0
+xlsxwriter>=3.1.0,<4.0.0
+plotly>=5.18.0,<6.0.0

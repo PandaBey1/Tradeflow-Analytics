@@ -1,29 +1,105 @@
 import streamlit as st
 import pandas as pd
 import time
+import html
+import logging
 from io import BytesIO
 from ticker_source import get_all_bist_tickers
 from data_engine import scan_market
+import yfinance as yf
+import plotly.graph_objects as go
+
+# Security: Setup logging for safe error handling
+logger = logging.getLogger(__name__)
+
+# --- TRADEFLOW MOMENTUM SCORING ENGINE (ACCURATE MODE) ---
+def calculate_tradeflow_score(row, idx_ch):
+    # 1. HARD FİLTRELER (Bunları geçemeyen LİSTEYE GİREMEZ)
+    ma5_dist = row.get('Ma5 S %', 0)
+    if ma5_dist < -1.0: return 0
+    
+    rsi_day = row.get('RSIDAY', 0)
+    rsi_60 = row.get('RSI60', 0)
+    
+    if rsi_day < 45: return 0
+    
+    score = 40
+    
+    rvol = row.get('RVol', 0)
+    if rvol > 3.0: score += 20
+    elif rvol > 1.5: score += 10
+    
+    sq = row.get('Squeeze')
+    if sq == "SUPER SQUEEZE": score += 25
+    elif sq == "SQUEEZE": score += 15
+    
+    if row.get('GapUp', False): score += 10
+    
+    if 55 <= rsi_day <= 75: score += 10
+    
+    if row.get('Gün Fark %', 0) > idx_ch: score += 5
+    
+    price = row.get('Sonfiyat', 0)
+    high = row.get('Zirve', 0)
+    if price > 0:
+        dist_to_high = ((high - price) / price) * 100
+        if dist_to_high < 2.0: score += 10
+        
+    if row.get('StrongClose', False): score += 10
+    
+    mfi = row.get('MFI', 50)
+    if mfi > 80: score += 10 
+    elif mfi > 60: score += 5
+    
+    ma21 = row.get('MA21', 0)
+    if ma21 > 0 and price > ma21: score += 5
+    
+    adx = row.get('ADX', 0)
+    if adx > 25: score += 10
+    elif adx > 20: score += 5
+
+    u_wick = row.get('U_Wick', 0)
+    if u_wick > 2.5: score -= 15
+    elif u_wick > 1.5: score -= 5
+    
+    return min(score, 100)
+
+def generate_ai_note(row):
+    notes = []
+    price = row.get('Sonfiyat', 0)
+    top_dist = ((row.get('Zirve', 0) - price) / price) * 100 if price > 0 else 100
+    
+    if row['Skor'] >= 100: notes.append("ELITE")
+    elif row['Skor'] >= 90: notes.append("TARGET")
+    
+    if row.get('Squeeze') == "SUPER SQUEEZE": notes.append("💎SUPER SQ")
+    elif row.get('Squeeze') == "SQUEEZE": notes.append("SQUEEZE")
+    
+    if row.get('GapUp'): notes.append("GAP UP")
+    if row.get('RVol', 0) > 3.0: notes.append("🐳WHALE")
+    if row.get('StrongClose'): notes.append("MARUBOZU")
+    
+    if top_dist < 1.0: notes.append("ATH🔥")
+    
+    return " | ".join(notes[:3]) if notes else "WATCH"
 
 # -- Page Config --
-# -- Page Config --
 st.set_page_config(
-    page_title="🐼 PANDA QUANTUM v0.5",
-    page_icon="🐼",
+    page_title="TRADEFLOW ANALYTICS v0.6",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# -- QUANTUM DASHBOARD CSS --
-# -- QUANTUM TERMINAL CSS: PROFESSIONAL V2 --
+# -- TRADEFLOW DASHBOARD CSS --
+# -- TRADEFLOW TERMINAL CSS: PROFESSIONAL V2 --
 # -- SIDEBAR & CONFIGURATION --
 with st.sidebar:
-    st.markdown("### ⚙️ QUANTUM CONFIG")
+    st.markdown("### ⚙️ TRADEFLOW CONFIG")
     st.markdown("---")
     
     # Filter Inputs
     st.markdown("#### 🔍 SİNYAL FİLTRELERİ")
-    min_score = st.slider("Min Panda Puanı", 0, 100, 40, help="Listelenen hisseler için minimum kalite puanı.")
+    min_score = st.slider("Min TradeFlow Puanı", 0, 100, 40, help="Listelenen hisseler için minimum kalite puanı.")
     min_rsi = st.slider("Min RSI (Günlük)", 30, 70, 45, help="Daha düşük değerler 'Ucuz', yüksek değerler 'Momentum' arar.")
     min_mfi = st.slider("Min Para Girişi (MFI)", 20, 90, 50, help="Para girişi olmayan hisseleri eler.")
     
@@ -35,9 +111,9 @@ with st.sidebar:
     dark_mode = st.toggle("Karanlık Mod Focus", value=True)
     
     st.markdown("---")
-    st.markdown(f"<div style='text-align:center; color:#64748b; font-size:0.8rem;'>v0.5 BUILD</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='text-align:center; color:#64748b; font-size:0.8rem;'>v0.6 BUILD</div>", unsafe_allow_html=True)
 
-# -- QUANTUM DASHBOARD CSS v2.0 --
+# -- TRADEFLOW DASHBOARD CSS v2.0 --
 # Dynamic Color Palette
 if dark_mode:
     bg_color = "#030712"
@@ -256,8 +332,8 @@ st.markdown(f"""
 # -- UI HEADER --
 st.markdown("""
     <div class="header-container">
-        <h1 class="terminal-title">🐼 PANDA QUANTUM <span style="opacity:0.3; font-weight:300;">//</span> v0.5</h1>
-        <p class="terminal-subtitle">High-Frequency Momentum Intelligence</p>
+        <h1 class="terminal-title">TRADEFLOW ANALYTICS <span style="opacity:0.3; font-weight:300;">//</span> v0.6</h1>
+        <p class="terminal-subtitle">Yüksek Frekanslı Momentum ve Sektör İstihbaratı</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -265,15 +341,15 @@ st.markdown("""
 st.markdown("""
 <div class='status-grid'>
     <div class='status-item'>
-        <div class='label'>Engine Status</div>
-        <div class='value' style='color:#4ade80'>ONLINE</div>
+        <div class='label'>Sistem Durumu</div>
+        <div class='value' style='color:#4ade80'>AKTİF</div>
     </div>
     <div class='status-item'>
-        <div class='label'>Market Data</div>
+        <div class='label'>Piyasa Verisi</div>
         <div class='value' style='color:#38bdf8'>BIST 100+</div>
     </div>
     <div class='status-item'>
-        <div class='label'>AI Mode</div>
+        <div class='label'>Yapay Zeka Modu</div>
         <div class='value' style='color:#f472b6'>SNIPER</div>
     </div>
 </div>
@@ -286,11 +362,18 @@ if 'results' not in st.session_state:
     st.session_state['results'] = None
 if 'scanning' not in st.session_state:
     st.session_state['scanning'] = False
+if 'last_scan_time' not in st.session_state:
+    st.session_state['last_scan_time'] = 0
 
 with col_main:
     # Large Action Button
-    if st.button("RUN QUANTUM SCAN", type="primary", width="stretch"):
-        st.session_state['scanning'] = True
+    if st.button("TRADEFLOW TARAMASINI BAŞLAT", type="primary", width="stretch"):
+        elapsed = time.time() - st.session_state['last_scan_time']
+        if elapsed < 120:  # 2 dakika cooldown — API rate limit koruması
+            st.warning(f"⏳ API koruması aktif. Lütfen {int(120 - elapsed)} saniye bekleyin.")
+        else:
+            st.session_state['last_scan_time'] = time.time()
+            st.session_state['scanning'] = True
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -298,7 +381,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 with st.expander("❓ SİNYAL STRATEJİLERİ VE TEKNİK SÖZLÜK (DETAYLI ANLATIM)", expanded=False):
     st.markdown("""
     ### 🎓 BORSA TERİMLERİ VE SİNYAL REHBERİ
-    Bu bölüm, tabloda gördüğünüz terimlerin ne anlama geldiğini **hiç bilmeyenler için** basitleştirerek anlatır.
+    Bu rehber, TradeFlow algoritmasının tespit ettiği formasyonları ve piyasa dinamiklerini anlamlandırmanız için hazırlanmıştır. Listedeki sinyallerin arka planında yatan teknik mantığı kavramak, daha yetkin işlem kararları almanızı sağlayacaktır. Hedeflerinizi belirlemeden önce bu etiketlerin ne anlama geldiğine göz atmanızı öneririm.
     """)
     
     st.markdown("---")
@@ -310,56 +393,56 @@ with st.expander("❓ SİNYAL STRATEJİLERİ VE TEKNİK SÖZLÜK (DETAYLI ANLATI
         
         st.info("""
         **💎 ELITE (ŞAMPİYON):**
-        Listenin en iyisi. Hem hacim var, hem para girişi var, hem de teknik göstergeler kusursuz. "Yıldız" adaydır.
+        Sistemin en yüksek puanlı sinyalidir. Hacim, para girişi ve teknik göstergelerin eşzamanlı olarak kusursuz bir uyum içinde olduğunu gösterir. Potansiyeli yüksek güçlü bir trend adayıdır.
         
         **🐳 WHALE (BALİNA GİRİŞİ):**
-        Hisseye aniden devasa bir para/hacim girmiş (Normalin 3 katı). Genelde "Büyük Oyuncular" (Balinalar) alım yaptığında çıkar. Yükseliş habercisi olabilir.
+        Hisseye anlık olarak olağandışı bir hacim (ortalama değerlerin 3 katı ve üzeri) girişini simgeler. Kurumsal yatırımcıların veya büyük fonların işlem yaptığına dair güçlü bir öncül sinyaldir.
         
         **💎 SUPER SQ (BARUT FIÇISI):**
-        Sıkışma Sinyali. Fiyat uzun süredir dar bir bantta hareket etmiş, enerji biriktirmiş. Yay gerilmiş, bir yöne (genelde yukarı) sert patlama yapabilir.
+        Güçlü bir volatilite daralmasını (Sıkışma) ifade eder. Fiyatın uzun bir süre dar bir bantta konsolide olduğunu ve enerji biriktirdiğini gösterir. Sert ve yönlü bir kırılım habercisi olabilir.
         
         **SQUEEZE (SIKIŞMA):**
-        "Super SQ" kadar olmasa da fiyatın daraldığını ve bir hareket hazırlığında olduğunu gösterir. Bolinger bantları daralmıştır.
+        Fiyat hareketlerinde görece daralmayı gösterir. Bollinger bantlarının daraldığını ve hissede yakın zamanda bir hareket başlangıcı olabileceğini işaret eder.
 
         **🚀 TARGET (HEDEFE GİDEN):**
-        Teknik olarak yükseliş trendine girmiş, önü açık ve güçlenen hisseler.
+        Teknik olarak momentum kazanmış, güçlü bir yükseliş trendi içinde olan ve yukarı yönlü potansiyelini koruyan hisselerdir.
         
         **🔥 MARUBOZU (GÜÇLÜ KAPANIŞ):**
-        Hisse günü "tavandan" veya "en yüksek fiyattan" kapatmış. Satıcılar bitmiş, alıcılar hala almak istiyor. Ertesi gün için güçlü bir sinyaldir.
+        Satıcıların tamamen etkisiz kaldığı, gün içi oluşan en yüksek veya ona çok yakın seviyeden güçlü bir kapanışı sembolize eder. İlerleyen seanslar için pozitif ivme göstergesidir.
         
         **⚡ GAP UP (BOŞLUKLU AÇILIŞ):**
-        Hisse sabah açılırken, dünkü kapanış fiyatının "üstünden" başlamış. Yani alıcılar gece sıraya girmiş. Çok güçlü bir istektir.
+        Hissenin önceki günün kapanış fiyatının belirgin bir oranda üzerinde açılış yaptığını gösterir. Alıcıların kuvvetli talebini vurgulayan güçlü bir ikincil sinyaldir.
         
         **🏔️ ATH (ZİRVE - ALL TIME HIGH):**
-        Hisse tarihinin en yüksek fiyatında veya oraya çok yakın. Önünde "direnç" (satıcı duvarı) yok, önü açık.
+        Hissenin kaydettiği tarihi zirve seviyesinde veya çok yakın konumlandığını ifade eder. Önünde bilinen tarihsel bir direnç noktası bulunmamaktadır.
 
         **👀 WATCH (İZLEME LİSTESİ):**
-        Hisse henüz "AL" sinyali yakmamış ama radara girmiş. Hazırlık aşamasında olabilir, yakından takip edilmelidir.
+        Belirli teknik kriterleri yeni gelişen ve radara takılan hisselerdir. Henüz güçlü bir onaylama almamış olsa da, hazırlık aşamasında olduğu için yakından izlenmesi tavsiye edilir.
         """)
         
     with col_guide2:
         st.markdown("#### 📊 TEKNİK GÖSTERGELER (SAYILAR NE DİYOR?)")
         
         st.success("""
-        **RSI (HIZ GÖSTERGESİ):**
-        Arabanın hız kadranı gibidir. 
-        *   **30 Altı:** Çok ucuzlamış (Alım fırsatı olabilir).
-        *   **70 Üstü:** Çok hızlanmış/pahalılanmış (Motor ısınabilir).
-        *   **50-70 Arası:** İdeal Hız. Yükseliş için en sağlıklı bölge.
+        **RSI (MOMENTUM GÖSTERGESİ):**
+        Fiyat hareketlerinin hızını ve değişimini ölçer. 
+        *   **30 Altı:** Aşırı satım bölgesi (Tepki potansiyeli barındırır).
+        *   **70 Üstü:** Aşırı alım bölgesi (Trendin yorulduğunu işaret edebilir).
+        *   **50-70 Arası:** Optimum momentum. Sağlıklı bir yükseliş trendi için ideal bölgedir.
         
-        **MFI (PARA GİRİŞİ):**
-        Hisseye giren paranın gücünü ölçer.
-        *   **50 Üstü:** Para giriyor.
-        *   **80 Üstü:** ÇILGIN PARA GİRİŞİ. (Çok güçlü ama dikkatli olunmalı).
+        **MFI (PARA AKIŞI):**
+        Hisseye giren net sermayenin gücünü ölçümleyen göstergedir.
+        *   **50 Üstü:** Pozitif para girişi ve alıcı üstünlüğü.
+        *   **80 Üstü:** Çok güçlü bir nakit akışı. (Trend momentumu yüksek ancak düzeltmelere dikkat edilmelidir).
         
         **HACİM KAT (RVol):**
-        "Bugün ilgi ne kadar?" sorusunun cevabıdır.
-        *   **1.0x:** Normal ilgi.
-        *   **2.0x:** Düne göre 2 kat ilgi var.
-        *   **3.0x ve üstü:** Olağanüstü ilgi (Balina Sinyali).
+        İlgili günkü işlem hacminin, son 20 günlük ortalamaya kıyaslanmasıdır.
+        *   **1.0x:** Ortalama işlem hacmi.
+        *   **1.5x - 2.0x:** Normale kıyasla artan belirgin ilgi.
+        *   **3.0x ve üstü:** Piyasa kütlesinin ötesinde olağanüstü hacim patlaması (Kurumsal alım göstergesi).
         
         **ORT. UZAKLIK (MA5):**
-        Fiyatın kısa vadeli ortalamadan ne kadar kaçtığını gösterir. Fiyat ortalamadan çok uzaklaşırsa, geri dönüp dinlenmek isteyebilir. %0 ile %3 arası sağlıklı yükseliştir.
+        Anlık fiyatın son 5 saatlik hareketli ortalamadan yüzdesel sapmasını ifade eder. Ortalamadan aşırı uzaklaşmalarda fiyat, denge noktasına dönme eğilimi gösterir. %0 ile %3 bandı, dengeli bir yükseliş trendini tanımlar.
         """)
     
     st.markdown("---")
@@ -378,15 +461,27 @@ if st.session_state['scanning']:
     
     tickers = get_all_bist_tickers()
     
+    # Ensure tickers is a dict for sector support
+    if isinstance(tickers, list):
+        # Fallback if source returns list (shouldn't happen with new update but safe check)
+        tickers = {t: "Unknown" for t in tickers}
+    
     def update_progress(current, total):
         pct = current / total
         progress_bar.progress(pct)
-        status_text.markdown(f"<div style='text-align:center; color:#64748b; font-family:monospace; font-size:0.8rem;'>SCANNING ASSETS: {current}/{total}</div>", unsafe_allow_html=True)
+        status_text.markdown(f"<div style='text-align:center; color:#64748b; font-family:monospace; font-size:0.8rem;'>VARLIKLAR TARANIYOR: {current}/{total}</div>", unsafe_allow_html=True)
 
     try:
         df_results = data_engine.scan_market(tickers, status_callback=update_progress)
         
         if not df_results.empty:
+            # SAFETY CHECK: Ensure 'Sektor' column exists
+            if 'Sektor' not in df_results.columns:
+                df_results['Sektor'] = "Genel" # Default fallback
+            else:
+                # Fill any individual NaNs in Sektor
+                df_results['Sektor'] = df_results['Sektor'].fillna("Genel")
+                
             df_results = df_results.drop_duplicates(subset=['Sembol'])
             success_count = len(df_results)
             
@@ -396,78 +491,7 @@ if st.session_state['scanning']:
             # --- EDUCATIONAL GUIDE ---
 
 
-            # --- PANDA MOMENTUM SCORING ENGINE (ACCURATE MODE) ---
-            def calculate_panda_score(row):
-                # 1. HARD FİLTRELER (Bunları geçemeyen LİSTEYE GİREMEZ)
-                # Amacımız: Sadece Yükseliş Trendinde (Momentum) olanları bulmak.
-                
-                # A) MA5 Filtresi (Saatlik): Fiyat ortalamanın üzerinde olmalı (Momentum Check)
-                ma5_dist = row.get('Ma5 S %', 0)
-                if ma5_dist < -1.0: return 0  # %1 esneklik tanıdık, altındaysa puan 0.
-                
-                # B) RSI Filtreleri: Hem Günlük hem Saatlik "Güçlü" bölgede olmalı
-                rsi_day = row.get('RSIDAY', 0)
-                rsi_60 = row.get('RSI60', 0)
-                
-                if rsi_day < 45: return 0   # RSI 45 altı zayıf trend
-                
-                # --- PUANLAMA (BALANCED MODE) ---
-                score = 40  # Taban puanı düşürdüm (Eskisi 50 idi)
-                
-                # 1. Hacim Desteği (RVol)
-                rvol = row.get('RVol', 0)
-                if rvol > 3.0: score += 20  # Balina (Aşırı yüksek hacim)
-                elif rvol > 1.5: score += 10 # İyi hacim
-                
-                # 2. Sıkışma (Squeeze)
-                sq = row.get('Squeeze')
-                if sq == "SUPER SQUEEZE": score += 25
-                elif sq == "SQUEEZE": score += 15
-                
-                # 3. Gap Up
-                if row.get('GapUp', False): score += 10
-                
-                # 4. RSI Momentum (Puanı azalttım)
-                if 55 <= rsi_day <= 75: score += 10
-                
-                # 5. Endeks Üzeri Getiri
-                if row.get('Gün Fark %', 0) > idx_ch: score += 5
-                
-                # 6. Zirve Yakınlığı (ATH)
-                price = row.get('Sonfiyat', 0)
-                high = row.get('Zirve', 0)
-                if price > 0:
-                    dist_to_high = ((high - price) / price) * 100
-                    if dist_to_high < 2.0: score += 10
-                
-                # 7. Strong Close & Marubozu
-                if row.get('StrongClose', False): score += 10
-                
-                # 8. MFI (Money Flow)
-                mfi = row.get('MFI', 50)
-                if mfi > 80: score += 10 
-                elif mfi > 60: score += 5
-                
-                # 9. TREND (MA5 > MA21)
-                ma21 = row.get('MA21', 0)
-                if ma21 > 0 and price > ma21: score += 5
-                
-                # 10. TREND GÜCÜ (ADX > 25) - YENİ
-                # Trendin "kalitesini" ölçer.
-                adx = row.get('ADX', 0)
-                if adx > 25: score += 10
-                elif adx > 20: score += 5
-
-                # 11. TUZAK KONTROLÜ (WICK REJECTION) - YENİ
-                # Eğer yukarıda çok uzun bir fitil varsa, satıcı baskısı var demektir.
-                # Fake yükselişleri engeller.
-                u_wick = row.get('U_Wick', 0)
-                if u_wick > 2.5: score -= 15 # Ciddi satış yemiş
-                elif u_wick > 1.5: score -= 5
-                
-                return min(score, 100) # Cap at 100
-
-            df_results['Skor'] = df_results.apply(calculate_panda_score, axis=1)
+            df_results['Skor'] = df_results.apply(lambda row: calculate_tradeflow_score(row, idx_ch), axis=1)
             df_results['G.Güç'] = (df_results['Gün Fark %'] - idx_ch).round(2)
             df_results.rename(columns={'Gün Fark %': 'Gün %'}, inplace=True)
             
@@ -478,41 +502,22 @@ if st.session_state['scanning']:
             df_final_filtered = df_results[df_results['Skor'] >= 40].copy()
             
             if df_final_filtered.empty:
-                st.warning(f"SCAN COMPLETED: {success_count} tickers analyzed. No strict signals detected. Reviewing market strength.")
+                st.warning(f"TARAMA TAMAMLANDI: {success_count} hisse analiz edildi. Kesin sinyal bulunamadı. Genel piyasa gücü listeleniyor.")
                 df_final = df_results.sort_values(by='RSIDAY', ascending=False).head(20).copy()
-                df_final['Analiz'] = "MARKET STRENGTH"
+                df_final['Analiz'] = "PİYASA GÜCÜ"
             else:
-                st.success(f"ANALYSIS COMPLETE: {success_count} tickers scanned. {len(df_final_filtered)} signals identified.")
+                st.success(f"ANALİZ TAMAMLANDI: {success_count} hisse tarandı. {len(df_final_filtered)} sinyal tespit edildi.")
                 df_final = df_final_filtered
                 
-                def generate_ai_note(row):
-                    notes = []
-                    price = row.get('Sonfiyat', 0)
-                    top_dist = ((row.get('Zirve', 0) - price) / price) * 100 if price > 0 else 100
-                    
-                    if row['Skor'] >= 100: notes.append("ELITE")
-                    elif row['Skor'] >= 90: notes.append("TARGET")
-                    
-                    if row.get('Squeeze') == "SUPER SQUEEZE": notes.append("💎SUPER SQ")
-                    elif row.get('Squeeze') == "SQUEEZE": notes.append("SQUEEZE")
-                    
-                    if row.get('GapUp'): notes.append("GAP UP")
-                    if row.get('RVol', 0) > 3.0: notes.append("🐳WHALE")
-                    if row.get('StrongClose'): notes.append("MARUBOZU")
-                    
-                    if top_dist < 1.0: notes.append("ATH🔥")
-                    
-                    return " | ".join(notes[:3]) if notes else "WATCH"
-
                 df_final['Analiz'] = df_final.apply(generate_ai_note, axis=1)
             
-            display_cols = ['Sembol', 'Sonfiyat', 'Skor', 'Gün %', 'Analiz', 'MFI', 'Ma5 S %', 'RVol', 'RSI60']
+            display_cols = ['Sembol', 'Sektor', 'Sonfiyat', 'Skor', 'Gün %', 'Analiz', 'MFI', 'Ma5 S %', 'RVol', 'RSI60']
             for c in display_cols:
-                if c not in df_final.columns: df_final[c] = 0.0
+                if c not in df_final.columns and c != 'Sektor': df_final[c] = 0.0 # Don't zero-fill Sektor if missing, it's string
 
             st.session_state['results'] = df_final[display_cols].sort_values(by='Skor', ascending=False)
         else:
-            st.error("DATA FEED ERROR: Unable to retrieve market data. Yahoo Finance may be throttling requests. Please retry in 5 minutes.")
+            st.error("VERİ HATASI: Piyasa verileri çekilemedi. Yahoo Finance istekleri sınırlıyor olabilir. Lütfen 5 dakika sonra tekrar deneyin.")
             st.session_state['results'] = None
             
         st.session_state['scanning'] = False
@@ -520,7 +525,8 @@ if st.session_state['scanning']:
         progress_bar.empty()
         
     except Exception as e:
-        st.error(f"CRITICAL SYSTEM ERROR: {e}")
+        logger.error(f"Scan error: {e}", exc_info=True)  # Detay logda kalsın
+        st.error("Bir sistem hatası oluştu. Lütfen birkaç dakika sonra tekrar deneyin.")
         st.session_state['scanning'] = False
 
 # -- DISPLAY RESULTS --
@@ -574,13 +580,14 @@ if st.session_state['results'] is not None and not st.session_state['results'].e
     styler = df.style.map(style_analiz, subset=['Analiz'])\
                      .map(style_score, subset=['Skor'])\
                      .map(style_change, subset=['Gün %'])\
-                     .map(style_change, subset=['Gün %'])\
                      .format("{:.2f}", subset=['Sonfiyat', 'Ma5 S %', 'RVol', 'RSI60'])\
                      .format("{:.0f}", subset=['MFI'])
     
+    # -- DISPLAY DASHBOARD --
+    st.subheader("🚀 SİNYAL DASHBOARD")
     st.dataframe(
         styler,
-        width="stretch",
+        width=None, 
         height=700,
         column_config={
             "Sembol": st.column_config.TextColumn("HİSSE"),
@@ -591,41 +598,107 @@ if st.session_state['results'] is not None and not st.session_state['results'].e
             "MFI": st.column_config.NumberColumn("PARA GİRİŞİ (MFI)", format="%d", help="60 üstü: Para Girişi Var, 80 üstü: Güçlü Para Girişi"),
             "Ma5 S %": st.column_config.NumberColumn("ORT. UZAKLIK %", format="%.2f", help="Fiyatın 5 saatlik ortalamadan uzaklığı"),
             "RSI60": st.column_config.NumberColumn("RSI 1S", format="%.1f"),
-        }
+        },
+        use_container_width=True
     )
+
+    st.markdown("---")
     
+    # -- DISPLAY SECTOR ANALYSIS (LINEAR LAYOUT) --
+    st.subheader("🗺️ SEKTÖR ANALİZİ VE ISI HARİTASI")
+    
+    # Use raw_df to ensure we have all columns (Sektor, Gün Fark %)
+    if 'Sektor' in raw_df.columns:
+        target_col = 'Gün Fark %'
+        if 'Gün %' in raw_df.columns: target_col = 'Gün %' 
+        
+        if target_col in raw_df.columns:
+            sector_perf = raw_df.groupby('Sektor')[target_col].agg(['mean', 'count']).sort_values(by='mean', ascending=False)
+            sector_perf.columns = ['Ortalama Değişim %', 'Hisse Sayısı']
+            
+            # Heatmap-like Display
+            cols = st.columns(4)
+            for i, (sector, row) in enumerate(sector_perf.iterrows()):
+                avg_chg = row['Ortalama Değişim %']
+                count = row['Hisse Sayısı']
+                
+                # Dynamic Coloring
+                if avg_chg >= 0:
+                    color = "#4ade80" # Bright Green
+                    bg_card = "rgba(74, 222, 128, 0.1)"
+                    border = "1px solid rgba(74, 222, 128, 0.3)"
+                else:
+                    color = "#f87171" # Soft Red
+                    bg_card = "rgba(248, 113, 113, 0.1)"
+                    border = "1px solid rgba(248, 113, 113, 0.3)"
+
+                with cols[i % 4]:
+                    st.markdown(f"""
+                    <div style="
+                        border: {border}; 
+                        border-radius: 12px; 
+                        padding: 15px; 
+                        margin-bottom: 15px; 
+                        background-color: {bg_card}; 
+                        text-align: center;
+                        height: 160px;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: center;
+                        align-items: center;
+                        transition: transform 0.2s;
+                    ">
+                        <h4 style="margin:0; color: #e2e8f0; font-size: 0.85em; font-weight: 500; height: 40px; display: flex; align-items: center;">{html.escape(str(sector))}</h4>
+                        <h2 style="margin: 5px 0; color: {color}; font-size: 2em; font-weight: 800;">{avg_chg:.2f}%</h2>
+                        <span style="font-size: 0.75em; color: #94a3b8; background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 10px;">{int(count)} Hisse</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # Detailed Sector View
+            st.write("")
+            selected_sector = st.selectbox("👉 Detaylı İncelemek İçin Sektör Seçin:", sector_perf.index)
+            if selected_sector:
+                st.markdown(f"**{selected_sector}** Sektörü - Lider Hisseler")
+                sec_res = raw_df[raw_df['Sektor'] == selected_sector].copy()
+                st.dataframe(
+                    sec_res[['Sembol', 'Skor', 'Sonfiyat', target_col, 'RVol', 'Analiz']].sort_values(by='Skor', ascending=False),
+                    use_container_width=True
+                )
+        else:
+             st.error(f"Hata: '{target_col}' sütunu bulunamadı.")
+    else:
+        st.info("Sektör verisi bulunamadı. Lütfen tekrar tarama yapın.")
+            
     # Export to CSV (Simple & Error-Free)
     csv = df.to_csv(index=False).encode('utf-8')
             
     col_dwn, col_copy = st.columns([1, 2])
     with col_dwn:
         st.download_button(
-            "DOWNLOAD CSV", 
+            "CSV OLARAK İNDİR", 
             data=csv, 
-            file_name=f"Panda_Quantum_{time.strftime('%Y%m%d_%H%M')}.csv", 
+            file_name=f"TradeFlow_Analytics_{time.strftime('%Y%m%d_%H%M')}.csv", 
             mime="text/csv"
         )
     
     with col_copy:
         # TradingView List Generator
         tv_list = ",".join([f"BIST:{sym}" for sym in df['Sembol'].tolist()])
-        st.text_input("TRADINGVIEW LIST (COPY)", value=tv_list)
+        st.text_input("TRADINGVIEW LİSTESİ (KOPYALA)", value=tv_list)
 
-    st.markdown("---")
-    
     st.markdown("---")
     
     # -- ADVANCED CHARTING SECTION --
     top_3 = df.head(3)['Sembol'].tolist()
 
     if show_charts and top_3:
-        st.markdown("### 📉 MARKET DEPTH & TRENDS")
+        st.markdown("### 📉 PİYASA DERİNLİĞİ VE TRENDLER")
         # Timeframe Selector
         tf_map = {
             "1D": "1d", "1W": "5d", "1M": "1mo", 
             "3M": "3mo", "1Y": "1y", "5Y": "5y"
         }
-        selected_tf = st.radio("TIMEFRAME", list(tf_map.keys()), index=2, horizontal=True, label_visibility="collapsed")
+        selected_tf = st.radio("PERİYOT", list(tf_map.keys()), index=2, horizontal=True, label_visibility="collapsed")
         period = tf_map[selected_tf]
         
         # Interval logic
@@ -635,10 +708,7 @@ if st.session_state['results'] is not None and not st.session_state['results'].e
         elif selected_tf == "1M": interval = "90m"
         
         # Tabs for "Dashboard View" vs "Focus View"
-        tabs = st.tabs(["⚡️ DASHBOARD"] + [f"🔎 {s}" for s in top_3])
-        
-        import yfinance as yf
-        import plotly.graph_objects as go
+        tabs = st.tabs(["⚡️ GÖSTERGE PANELİ"] + [f"🔎 {s}" for s in top_3])
         
         # Function to create chart
         def create_chart(sym, height=350, show_slider=False):
@@ -651,7 +721,8 @@ if st.session_state['results'] is not None and not st.session_state['results'].e
                     try:
                         hist = yf.Ticker(ticker_symbol).history(period=period, interval=interval)
                         if not hist.empty: break
-                    except:
+                    except Exception as e:
+                        logger.warning(f"Chart data fetch failed for {sym}, attempt {attempt+1}: {e}")
                         time.sleep(1 + attempt)
                         
                 if hist.empty: return None
@@ -717,7 +788,8 @@ if st.session_state['results'] is not None and not st.session_state['results'].e
                     dragmode='zoom'
                 )
                 return fig
-            except:
+            except Exception as e:
+                logger.warning(f"Chart creation failed for {sym}: {e}")
                 return None
 
         # 1. Dashboard Tab (All 3)
@@ -727,7 +799,7 @@ if st.session_state['results'] is not None and not st.session_state['results'].e
                 with cols[i]:
                     fig = create_chart(sym, height=350, show_slider=False)
                     if fig: st.plotly_chart(fig, theme="streamlit", width="stretch", config={'displayModeBar': False})
-                    else: st.warning("No Data")
+                    else: st.warning("Veri Yok")
         
         # 2. Focus Tabs (Big Charts)
         for i, sym in enumerate(top_3):
@@ -739,9 +811,11 @@ if st.session_state['results'] is not None and not st.session_state['results'].e
                         'displayModeBar': True,
                         'modeBarButtonsToAdd': ['drawline', 'drawopenpath', 'pan2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']
                     })
-                else: st.warning("No Data")
+                else: st.warning("Veri Yok")
 
 elif st.session_state['results'] is None and not st.session_state['scanning']:
     # Idle State
     pass
 
+st.markdown("---")
+st.caption("⚠️ **Yasal Uyarı**: Burada yer alan sinyaller, veriler ve analizler tamamen algoritmik hesaplamalara dayanmaktadır ve kesinlikle yatırım tavsiyesi niteliği taşımaz. Gerçekleştirilecek işlemlerin tüm finansal sorumluluğu sadece size aittir.")
