@@ -122,7 +122,11 @@ def scan_market(tickers, status_callback=None):
                             bb = ta.bbands(df_hourly['Close'], length=20)
                             if bb is not None:
                                 w = (bb.iloc[:, 2] - bb.iloc[:, 0]) / bb.iloc[:, 1]
-                                if w.iloc[-1] <= w.tail(50).quantile(0.15): squeeze = "SQUEEZE"
+                                current_w = w.iloc[-1]
+                                if current_w <= w.tail(50).quantile(0.05):
+                                    squeeze = "SUPER SQUEEZE"
+                                elif current_w <= w.tail(50).quantile(0.15): 
+                                    squeeze = "SQUEEZE"
                         
                         current_results.append({
                             "Sembol": ticker.replace(".IS", ""),

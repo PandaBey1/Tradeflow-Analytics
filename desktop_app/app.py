@@ -37,6 +37,9 @@ def calculate_tradeflow_score(row, idx_ch):
     
     if 55 <= rsi_day <= 75: score += 10
     
+    # Yeni eklenti: Gün içi (Saatlik) ivmesi kuvvetli olan hisseleri destekle
+    if 55 <= rsi_60 <= 80: score += 10
+    
     if row.get('Gün Fark %', 0) > idx_ch: score += 5
     
     price = row.get('Sonfiyat', 0)
