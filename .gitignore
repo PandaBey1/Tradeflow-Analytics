@@ -6,6 +6,7 @@ config.json
 # IDEs
 .idea/
 .vscode/
+.DS_Store
 
 # Python caching
 __pycache__/
