@@ -11,9 +11,3 @@ config.json
 __pycache__/
 *.pyc
 
-# Backup Folders
-*_backup/
-*BACKUP/
-desktop_app_backup/
-Momentum_v0.5_GOLD_BACKUP/
-Yedek_Arsivi/
