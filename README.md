@@ -1,77 +1,156 @@
-# TRADEFLOW ANALYTICS v0.6 (Sector Intelligence Edition)
+# TRADEFLOW ANALYTICS v0.7-dev
 
-**BIST 100+ İçin Yeni Nesil Momentum & Sektör Analiz Terminali**
+**BIST İçin Momentum, Hacim, Sektör ve Backtest Odaklı Analiz Terminali**
 
-TradeFlow Analytics, Borsa İstanbul (BIST) hisselerini TradingView destekli canlı verilerle tarayan, sektör rotasyonlarını analiz eden ve yapay zeka destekli momentum sinyalleri üreten profesyonel bir borsa analiz terminalidir.
+TradeFlow Analytics, Borsa İstanbul (BIST) hisselerini TradingView destekli sembol verisi ve Yahoo Finance fiyat/hacim verisiyle tarayan, teknik momentum, hacim anomalisi, para akışı, relatif güç ve sektör rotasyonu üzerinden radar sinyalleri üreten bir analiz terminalidir.
 
-![Status](https://img.shields.io/badge/Status-v0.6%20Stable-success)
+Projenin yönü artık sadece "çok sinyal gösteren tarayıcı" olmak değildir. Hedef, üretilen skorların gerçekten işe yarayıp yaramadığını geçmiş veriyle ölçen, sinyallerini backtest ile kalibre eden ve kullanıcıya neden-sonuç ilişkisi açıklayabilen bir karar destek terminaline dönüşmektir.
+
+![Status](https://img.shields.io/badge/Status-v0.7--dev-yellow)
 ![Data](https://img.shields.io/badge/Data-TradingView%20%7C%20Yahoo-blueviolet)
 
 ---
 
-## 🌟 YENİ EKLENEN ÖZELLİKLER (v0.6)
+## Güncel Durum (v0.7-dev)
 
-### 1. 🇹🇷 Tamamen Türkçeleştirilmiş Profesyonel Arayüz
-Borsa analiz sürecinde kullanılan tüm modüller, göstergeler, menüler ve sinyal açıklamaları global standartlara uygun profesyonel Türkçe piyasa dili ile güncellendi.
+### 1. Momentum Radarı
+Sistem, her hisse için TradeFlow skoru üretir. Skor; RSI, MA21, ADX, günlük hareket, güçlü kapanış, squeeze, hacim ve para akışı gibi bileşenlerden beslenir.
 
-### 2. ⚡️ Geliştirilmiş Performans Motoru (Global Scope Optimizasyonu)
-Tarama motorunda yapılan yenilikler sayesinde `app.py`, `data_engine.py` ve `ticker_source.py` dosyalarında kod temizliği yapılarak fonksiyon tekrarları silindi. Bu, hem tarama hızını artırdı hem de sistemin API Rate limitlerine takılmasını önleyen (120 sn. Cooldown) güvenlik modüllerinin eklenmesini sağladı. 
+### 2. Hacim ve Para Akışı Katmanı
+İlk sürümlerde hacim sadece `RVol` ile ölçülüyordu. v0.7-dev ile hacim tarafı daha açıklanabilir hale geldi:
 
-### 3. 🎨 Kusursuz Karanlık Mod (Dark Mode) ve UI Deneyimi
-Yeni sürüm ile `Karanlık Mod Focus` toggle yapısı arayüze tam entegre edildi. Gece işlemlerinde veya uzun analiz maratonlarında gözü yormayan "Sniper" (Glassmorphism) tasarım konseptine geçildi.
+*   `RVol`: Güncel hacmin 20 günlük ortalama hacme oranı.
+*   `Hacim Trend %`: Son 5 günlük hacim ortalamasının önceki döneme göre değişimi.
+*   `PV Onay`: Fiyat yükselişinin hacim ve kapanış konumuyla desteklenip desteklenmediği.
+*   `Birikim`: MFI, hacim trendi ve düşük fitil riskiyle olası toplama davranışı.
+*   `Dağıtım Uyarı`: Yüksek hacim + üst fitil + zayıf kapanış kombinasyonu.
+*   `MFI Değişim`: Para akışındaki kısa vadeli değişim.
 
-### 4. 🗺️ Dinamik Sektör Analizi (Heatmap)
-Artık piyasanın genel yönünü tek bakışta görebilirsiniz.
-*   **Renkli Isı Haritası:** Yükselen sektörler **yeşil**, düşenler **kırmızı** kutularla gösterilir.
-*   **Detaylı Kırılım:** "Bankacılık", "Ulaştırma", "Enerji" gibi Türkçeleştirilmiş sektör başlıkları.
-*   **Akıllı Filtreleme:** Bir sektöre tıkladığınızda sadece o sektörün en iyi hisselerini listeler.
+### 3. Açıklanabilir Skor
+Tabloda artık sadece tek skor yoktur. Skor alt bileşenlere ayrılır:
+
+*   `Trend`
+*   `Hacim`
+*   `Para`
+*   `Volatilite`
+*   `Relatif`
+*   `Risk`
+
+Her hisse için `Profil` ve `Neden Radarda?` alanları üretilir. Böylece kullanıcı sadece puanı değil, puanın arkasındaki mantığı da görür.
+
+### 4. Sektör Analizi
+Sektör heatmap artık sadece filtrelenmiş sinyal listesinden değil, ham tarama sonucundan beslenir. Böylece sektör görünümü piyasa geneline daha yakın okunur.
+
+### 5. Araştırma ve Geliştirme Yönü
+Bu sürümden sonraki ana hedef, skor mantığını geçmiş veriyle daha ölçülebilir hale getirmek ve sinyal kalitesini iyileştirmektir.
+
+### 6. Backtest v0.1 Laboratuvarı
+Projeye ilk backtest motoru eklenmiştir. Bu katman canlı radarı otomatik değiştirmez; skor mantığını geçmiş veri üzerinde ölçen bağımsız bir laboratuvar olarak çalışır.
+
+Backtest v0.1 şunları üretir:
+
+*   BIST30 endeksinde günlük skor geçmişi.
+*   1/5/10/20 işlem günü forward getiri.
+*   XU100'e göre relatif getiri.
+*   Skor gruplarına göre performans.
+*   Sinyal bazlı katkı analizi.
+*   Seçilen skor grubunu hangi hisselerin oluşturduğunu gösteren hisse dağılımı.
+
+Yorum kuralı:
+
+`Rel Brüt % = Hisse Brüt Getirisi - XU100 Getirisi`.
+`Rel Net % = Hisse Net Getirisi - XU100 Getirisi`.
+`Rel Net %` pozitifse hisse, işlem maliyeti düşüldükten sonra aynı dönemde endeksten daha iyi performans göstermiştir.
+
+### 7. 2026-05-14 Geliştirme Notu
+
+Bu oturumda canlı radar ile backtest laboratuvarı kullanıcı akışı açısından birbirine bağlandı.
+
+*   Canlı tarama endeksi seçilebilir hale geldi: `BIST30`, `BIST100`, `BISTTUM`.
+*   Varsayılan canlı endeks `BIST30` oldu.
+*   Endeks modlarında dashboard seçilen endeksteki hisselerin tamamını gösterir. `Radar Sinyali` sayısı, bu endeksten skor eşiğini geçenleri ifade eder.
+*   Skor eşiğini geçmeyen hisseler `Düşük Skor / İzleme` olarak açıklanır; bunlar taranmamış veya sistem dışı değildir.
+*   `Canlı Hisse Backtest Karnesi` paneli eklendi. Canlı listede olan ve backtest kapsamına giren hisse seçildiğinde, aynı sembol ve aynı skor grubu için geçmiş karne gösterilir.
+*   Canlı tarama ve backtest aynı anda çalıştırılamaz. Yahoo Finance timeout/donma riskini azaltmak için tek aktif piyasa işlemi kilidi eklendi.
+*   Otomatik grafikler varsayılan kapalı hale getirildi.
+*   Backtest sonuçlarında brüt relatif ve net relatif getiri ayrımı eklendi.
+*   Günlük tekrarları azaltmak için event/cooldown backtest özeti eklendi. Aynı hisse aynı skor grubunda kaldıkça tekrar sinyal sayılmaz; aynı gruba dönüş için cooldown uygulanır.
+
+Bir sonraki ana geliştirme adımları:
+
+*   BIST100 ve BISTTUM taramalarında hız/timeout optimizasyonlarını iyileştirmek.
+
+### 8. 2026-05-16 Kullanıcı Deneyimi ve Backtest Notu
+
+Bu oturumda uygulama daha sade, açıklanabilir ve kullanıcı dostu hale getirildi.
+
+*   Ana endeks seçimi `Endeks` olarak adlandırıldı. `Evren` ve `Piyasa Endeksi` gibi kafa karıştıran ifadeler kaldırıldı.
+*   `Kanıtı Güncelle` butonu `Backtest Çalıştır` olarak değiştirildi.
+*   Koyu/açık tema kontrolü eklendi ve tema renkleri metrikler, sidebar, sekmeler, grafikler ve tablolar için uyumlu hale getirildi.
+*   Streamlit `st.dataframe` tema müdahaleleriyle görünmez tablo sorununa yol açtığı için radar/backtest/sector tabloları tema uyumlu özel HTML tablo renderer'ına taşındı.
+*   `Giriş Kalitesi` ve `Kırılım` kolonlarındaki progress bar görünümü özel tablo renderer'ı içinde geri eklendi.
+*   `Sözlük` sekmesi eklendi. Skor, giriş kalitesi, kırılım, risk, analiz etiketleri, backtest kanıtı, `Performans Günü`, net/relatif net getiri ve başarı oranı açıklanır.
+*   Backtest sekmesi kullanıcı dostu hale getirildi. Üstte `Hisse Özel İnceleme` alanı vardır; kullanıcı bir sembol seçip o hissenin geçmiş event sayısını, ortalama skorunu, 5/10/20 günlük relatif net performansını, skor grubu dağılımını, sinyal bazlı sonuçlarını ve son event kayıtlarını görür.
+*   Genel backtest özeti korunmuştur, fakat hisse özel incelemenin altına taşınmıştır.
+*   Backtest grafiklerinde eski `Ufuk` ifadesi yerine `Performans Günü` kullanılır.
+
+Bir sonraki öncelik sırası:
+
+1. Hisse özel backtest yorum etiketi eklemek.
+2. Radar karar kartında risk/giriş/kırılım nedenlerini madde madde açıklamak.
+3. BIST100 performans/timeout optimizasyonu yapmak.
 
 ---
 
-## 🚀 ÇEKİRDEK ÖZELLİKLER (Sinyal Motoru)
+## Çekirdek Özellikler
 
-*   **💎 ELITE Skoru:** Teknik, Hacim ve Trendin kusursuz olduğu hisseleri puanlar (0-100).
-*   **🐳 WHALE (Balina):** Hacmin ortalamanın 3 katına (3x) çıktığı hisseleri yakalar.
-*   **💎 SUPER SQUEEZE:** Bollinger bantlarının daraldığı, patlamaya hazır hisseleri bulur.
-*   **⚡ GAP UP & MARUBOZU:** Güçlü açılış ve kapanışları tespit eder.
-*   **💰 Para Girişi (MFI):** Gerçek para girişini (Smart Money) analiz eder.
-
----
-
-## 🛠️ KURULUM VE ÇALIŞTIRMA
-
-Bu projeyi kendi bilgisayarınızda çalıştırmak için:
-
-1.  **Repoyu İndirin:**
-    ```bash
-    git clone https://github.com/KULLANICI_ADINIZ/tradeflow-analytics.git
-    cd tradeflow-analytics
-    ```
-
-2.  **Gerekli Kütüphaneleri Yükleyin:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-3.  **Uygulamayı Başlatın:**
-    Terminalde şu komutu çalıştırın:
-    ```bash
-    streamlit run desktop_app/app.py
-    ```
+*   **TradeFlow Skoru:** Hisseleri 0-100 arası momentum/radar puanıyla sıralar.
+*   **WHALE:** Hacmin ortalamanın belirgin şekilde üstüne çıktığı hisseleri işaretler.
+*   **SUPER SQUEEZE:** Bollinger bant daralmasıyla volatilite sıkışmasını yakalar.
+*   **GAP UP & MARUBOZU:** Güçlü açılış ve güçlü kapanış davranışlarını tespit eder.
+*   **MFI / Para Akışı:** Hacim destekli para girişini izler.
+*   **Relatif Güç:** Hissenin endekse göre güçlü/zayıf davranışını ölçer.
+*   **Sektör Heatmap:** Sektör bazında ortalama değişimi ve lider hisseleri gösterir.
+*   **Backtest Laboratuvarı:** Skor grupları, sinyaller, hisse özel event geçmişi ve hisse dağılımı üzerinden geçmiş performansı ölçer.
+*   **Sözlük:** Radar ve backtest terimlerini uygulama içinde açıklar.
+*   **CSV / TradingView Export:** Sonuçları dışarı aktarmayı kolaylaştırır.
 
 ---
 
-## 📁 PROJE YAPISI (Geliştirici Notları)
+## Kurulum ve Çalıştırma
 
-*   `desktop_app/app.py`: Ana arayüz kodu. Streamlit görselleştirmeleri ve Sektör Haritası mantığı burada.
-*   `desktop_app/data_engine.py`: Yahoo Finance veri çekme, teknik analiz hesaplamaları (RSI, MA, Bollinger).
-*   `desktop_app/ticker_source.py`: **TradingView API** bağlantısı ve Sektör Türkçeleştirme haritası.
+Gerekli kütüphaneleri yükleyin:
+
+```bash
+pip install -r requirements.txt
+```
+
+Uygulamayı başlatın:
+
+```bash
+streamlit run desktop_app/app.py
+```
+
+Yerel geliştirme ortamında mevcut sanal ortam kullanılıyorsa:
+
+```bash
+.venv/bin/python -m streamlit run desktop_app/app.py --server.address 127.0.0.1 --server.port 8501
+```
 
 ---
 
-## ⚠️ YASAL UYARI
+## Proje Yapısı
 
-Bu yazılım **eğitim ve analiz amaçlıdır**. Üretilen sinyaller, puanlar ve veriler **yatırım tavsiyesi değildir**. Finansal kararlarınızı kendi araştırmanıza göre veriniz.
+*   `desktop_app/app.py`: Streamlit arayüzü, skor hesaplama, tablo, filtreler, heatmap ve grafikler.
+*   `desktop_app/data_engine.py`: Yahoo Finance veri çekme, teknik indikatörler, hacim ve para akışı metrikleri.
+*   `desktop_app/backtest_engine.py`: Backtest v0.1 motoru, geçmiş skor üretimi, forward getiri, relatif getiri ve özet raporlar.
+*   `desktop_app/ticker_source.py`: TradingView Scanner API sembol/sektör kaynağı ve fallback ticker listesi.
 
 ---
-*Powered by AntiGravity & TradeFlow AI*�
+
+## Yasal Uyarı
+
+Bu yazılım eğitim, araştırma ve analiz amaçlıdır. Üretilen sinyaller, puanlar ve veriler yatırım tavsiyesi değildir. Finansal kararlar kullanıcı sorumluluğundadır.
+
+---
+*Powered by AntiGravity & TradeFlow AI*

@@ -7,67 +7,89 @@ import logging
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
+SECTOR_TRANSLATION_MAP = {
+    "Transportation": "Ulaştırma",
+    "Finance": "Bankacılık & Finans",
+    "Consumer Non-Durables": "Gıda & Tüketim",
+    "Consumer Durables": "Dayanıklı Tüketim",
+    "Energy Minerals": "Enerji",
+    "Process Industries": "Kimya & Sanayi",
+    "Utilities": "Kamu Hizmetleri (Elektrik/Su)",
+    "Retail Trade": "Perakende Ticaret",
+    "Health Technology": "Sağlık & İlaç",
+    "Technology Services": "Teknoloji & Yazılım",
+    "Electronic Technology": "Elektronik",
+    "Commercial Services": "Ticari Hizmetler",
+    "Consumer Services": "Hizmet Sektörü",
+    "Non-Energy Minerals": "Madencilik",
+    "Industrial Services": "Endüstriyel Hizmetler",
+    "Producer Manufacturing": "İmalat Sanayi",
+    "Communications": "İletişim",
+    "Health Services": "Sağlık Hizmetleri",
+    "Distribution Services": "Dağıtım & Lojistik",
+    "Miscellaneous": "Diğer"
+}
+
+BIST_INDEX_PRONAMES = {
+    "BIST30": "BIST:XU030",
+    "BIST100": "BIST:XU100",
+    "BISTTUM": "BIST:XUTUM",
+}
+
+BIST30_FALLBACK = [
+    "THYAO.IS", "GARAN.IS", "AKBNK.IS", "ISCTR.IS", "YKBNK.IS", "ASELS.IS",
+    "TUPRS.IS", "EREGL.IS", "KCHOL.IS", "SAHOL.IS", "BIMAS.IS", "FROTO.IS",
+    "TOASO.IS", "SISE.IS", "TCELL.IS", "PGSUS.IS", "TAVHL.IS", "PETKM.IS",
+    "KRDMD.IS", "ENKAI.IS", "MGROS.IS", "ALARK.IS", "ASTOR.IS", "HEKTS.IS",
+    "SASA.IS", "GUBRF.IS", "MAVI.IS", "DOAS.IS", "KOZAL.IS", "OYAKC.IS",
+]
+
+
+def _translate_sector(sector):
+    if sector is None:
+        return "Genel"
+    return SECTOR_TRANSLATION_MAP.get(sector, sector)
+
+
+def _request_tradingview_scan(columns, result_range=(0, 700)):
+    url = "https://scanner.tradingview.com/turkey/scan"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    payload = {
+        "filter": [
+            {"left": "type", "operation": "in_range", "right": ["stock", "dr"]},
+            {"left": "exchange", "operation": "equal", "right": "BIST"},
+            {"left": "subtype", "operation": "in_range", "right": ["common", "preference"]}
+        ],
+        "options": {"lang": "tr"},
+        "symbols": {"query": {"types": []}},
+        "columns": columns,
+        "sort": {"sortBy": "volume", "sortOrder": "desc"},
+        "range": list(result_range)
+    }
+
+    response = requests.post(url, headers=headers, json=payload, timeout=5)
+    if response.status_code != 200:
+        return {}
+
+    # Güvenlik: Yanıt boyutu kontrolü (5MB limit — Memory Exhaustion koruması)
+    if len(response.content) > 5 * 1024 * 1024:
+        logger.error("API response too large, aborting for safety")
+        return {}
+
+    return response.json()
+
+
 def fetch_tickers_from_tradingview():
     """
     Fetches the comprehensive list of active BIST stocks AND their sectors from TradingView Scanner API.
     Returns: dict { 'THYAO.IS': 'Transportation', 'GARAN.IS': 'Finance', ... }
     """
     try:
-        url = "https://scanner.tradingview.com/turkey/scan"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        }
-        # Added "sector" to columns
-        payload = {
-            "filter": [
-                {"left": "type", "operation": "in_range", "right": ["stock", "dr"]},
-                {"left": "exchange", "operation": "equal", "right": "BIST"},
-                {"left": "subtype", "operation": "in_range", "right": ["common", "preference"]} # Exclude warrants/funds if needed
-            ],
-            "options": {"lang": "tr"},
-            "symbols": {"query": {"types": []}},
-            "columns": ["name", "close", "volume", "sector"], 
-            "sort": {"sortBy": "volume", "sortOrder": "desc"},
-            "range": [0, 600] # Cap at top 600 liquid stocks
-        }
-        
-        response = requests.post(url, headers=headers, json=payload, timeout=5)
-        
-        if response.status_code != 200:
-            return {}
-        
-        # Güvenlik: Yanıt boyutu kontrolü (5MB limit — Memory Exhaustion koruması)
-        if len(response.content) > 5 * 1024 * 1024:
-            logger.error("API response too large, aborting for safety")
-            return {}
-            
-        data = response.json()
+        data = _request_tradingview_scan(["name", "close", "volume", "sector"], result_range=(0, 700))
         ticker_map = {}
-        
-        # Translation Map
-        SECTOR_TRANSLATION_MAP = {
-            "Transportation": "Ulaştırma",
-            "Finance": "Bankacılık & Finans",
-            "Consumer Non-Durables": "Gıda & Tüketim",
-            "Consumer Durables": "Dayanıklı Tüketim",
-            "Energy Minerals": "Enerji",
-            "Process Industries": "Kimya & Sanayi",
-            "Utilities": "Kamu Hizmetleri (Elektrik/Su)",
-            "Retail Trade": "Perakende Ticaret",
-            "Health Technology": "Sağlık & İlaç",
-            "Technology Services": "Teknoloji & Yazılım",
-            "Electronic Technology": "Elektronik",
-            "Commercial Services": "Ticari Hizmetler",
-            "Consumer Services": "Hizmet Sektörü",
-            "Non-Energy Minerals": "Madencilik",
-            "Industrial Services": "Endüstriyel Hizmetler",
-            "Producer Manufacturing": "İmalat Sanayi",
-            "Communications": "İletişim",
-            "Health Services": "Sağlık Hizmetleri",
-            "Distribution Services": "Dağıtım & Lojistik",
-            "Miscellaneous": "Diğer"
-        }
-        
+
         if 'data' in data:
             for item in data['data']:
                 # d[0] = name, d[1] = close, d[2] = volume, d[3] = sector
@@ -76,17 +98,70 @@ def fetch_tickers_from_tradingview():
                 
                 if symbol:
                     clean_sym = symbol.split(":")[-1]
-                    # Translate
-                    if sector is None: sector = "Genel"
                     # Sektör çevirisi (app.py'de zaten HTML escape ediliyor, o yüzden UI'da çirkinleşmemesi için burada escapei kaldırdık)
-                    sector = SECTOR_TRANSLATION_MAP.get(sector, sector)
-                    
-                    ticker_map[f"{clean_sym}.IS"] = sector
-        
+                    ticker_map[f"{clean_sym}.IS"] = _translate_sector(sector)
+
         return ticker_map
     except Exception as e:
         logger.error(f"TradingView Fetch Error: {e}")
         return {}
+
+
+def fetch_index_tickers_from_tradingview(index_key):
+    """
+    Returns BIST index members with sector info by reading TradingView's indexes column.
+    Supported keys: BIST30, BIST100, BISTTUM.
+    """
+    target_proname = BIST_INDEX_PRONAMES.get(str(index_key).upper())
+    if not target_proname:
+        return {}
+
+    try:
+        data = _request_tradingview_scan(
+            ["name", "close", "volume", "sector", "indexes"],
+            result_range=(0, 700),
+        )
+        ticker_map = {}
+
+        if 'data' in data:
+            for item in data['data']:
+                values = item.get('d', [])
+                symbol = values[0] if len(values) > 0 else None
+                sector = values[3] if len(values) > 3 else "Genel"
+                indexes = values[4] if len(values) > 4 and isinstance(values[4], list) else []
+                index_pronames = {idx.get("proname") for idx in indexes if isinstance(idx, dict)}
+
+                if symbol and target_proname in index_pronames:
+                    clean_sym = symbol.split(":")[-1]
+                    ticker_map[f"{clean_sym}.IS"] = _translate_sector(sector)
+
+        return ticker_map
+    except Exception as e:
+        logger.error(f"TradingView index fetch error ({index_key}): {e}")
+        return {}
+
+
+def get_bist_universe_tickers(universe):
+    """
+    Return a ticker map for the selected scan universe.
+
+    BIST30/BIST100/BISTTUM are fetched from TradingView index membership when
+    available. BISTTUM falls back to all active BIST tickers if index membership
+    cannot be fetched.
+    """
+    key = str(universe).strip().upper()
+    if key in BIST_INDEX_PRONAMES:
+        dynamic_map = fetch_index_tickers_from_tradingview(key)
+        minimum_count = {"BIST30": 20, "BIST100": 70, "BISTTUM": 300}.get(key, 1)
+        if dynamic_map and len(dynamic_map) >= minimum_count:
+            return dynamic_map
+        if key == "BIST30":
+            return {ticker: "BIST30 Fallback" for ticker in BIST30_FALLBACK}
+        if key == "BIST100":
+            return dict(list(get_all_bist_tickers().items())[:100])
+        if key == "BISTTUM":
+            return get_all_bist_tickers()
+    return get_all_bist_tickers()
 
 def get_all_bist_tickers():
     """
@@ -160,4 +235,4 @@ def get_all_bist_tickers():
         "ATEKS.IS", "PKART.IS", "BURVA.IS", "EDATA.IS", "PEKGY.IS", "EUPWR.IS", "CVKMD.IS", "POLTK.IS", "ONCSM.IS", "SDTTR.IS",
         "MIATK.IS", "DOBUR.IS", "FONET.IS", "VBTYZ.IS", "REEDR.IS", "KBORU.IS", "TARKM.IS"
     ]
-    return {t: "Unknown" for t in tickers_fallback}
+    return {t: "Unknown" for t in dict.fromkeys(tickers_fallback)}

@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 # Global cache for Index data
 INDEX_CHANGE_1D = 0.0
+REQUIRED_COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
 
 def fetch_index_data():
     """Fetches XU100 data to use as baseline."""
@@ -44,15 +45,49 @@ def scan_market(tickers, status_callback=None):
     results = []
     processed_count = 0
     failed_tickers = []
+    failed_ticker_reasons = {}
+    processed_tickers = set()
+
+    def mark_failed(ticker, reason):
+        if ticker not in processed_tickers:
+            failed_ticker_reasons[ticker] = reason
+
+    def mark_processed(ticker):
+        processed_tickers.add(ticker)
+        failed_ticker_reasons.pop(ticker, None)
+
+    def extract_ticker_frame(bulk_df, ticker, chunk_len):
+        if bulk_df is None or bulk_df.empty:
+            return pd.DataFrame()
+
+        if not isinstance(bulk_df.columns, pd.MultiIndex):
+            return bulk_df if chunk_len == 1 else pd.DataFrame()
+
+        for level in range(bulk_df.columns.nlevels):
+            level_values = bulk_df.columns.get_level_values(level)
+            if ticker in level_values:
+                try:
+                    return bulk_df.xs(ticker, axis=1, level=level, drop_level=True)
+                except Exception:
+                    return pd.DataFrame()
+
+        for level in range(bulk_df.columns.nlevels):
+            level_values = bulk_df.columns.get_level_values(level)
+            if all(col in level_values for col in REQUIRED_COLUMNS):
+                cleaned = bulk_df.copy()
+                cleaned.columns = level_values
+                return cleaned
+
+        return pd.DataFrame()
     
     CHUNK_SIZE = 25 
     chunks = [ticker_list[i:i + CHUNK_SIZE] for i in range(0, len(ticker_list), CHUNK_SIZE)]
     
-    def process_chunk(chunk, current_results):
+    def process_chunk(chunk, current_results, max_attempts=3, use_backoff=True):
         nonlocal processed_count
         success = False
         attempts = 0
-        while not success and attempts < 3:
+        while not success and attempts < max_attempts:
             try:
                 # Bulk Download
                 df_daily_bulk = yf.download(chunk, period="1y", interval="1d", group_by='ticker', auto_adjust=True, progress=False, threads=True)
@@ -62,14 +97,20 @@ def scan_market(tickers, status_callback=None):
                 
                 for ticker in chunk:
                     try:
-                        if len(chunk) == 1: df_daily = df_daily_bulk
-                        else: df_daily = df_daily_bulk[ticker] if ticker in df_daily_bulk else pd.DataFrame()
+                        df_daily = extract_ticker_frame(df_daily_bulk, ticker, len(chunk))
                         
                         df_daily = df_daily.dropna()
-                        if df_daily.empty or len(df_daily) < 30: continue
+                        if df_daily.empty:
+                            mark_failed(ticker, "Günlük veri boş")
+                            continue
+                        if len(df_daily) < 30:
+                            mark_failed(ticker, "Yeterli günlük veri yok")
+                            continue
                         
                         current_price = float(df_daily['Close'].iloc[-1])
-                        current_high = float(df_daily['High'].iloc[-1])
+                        day_high = float(df_daily['High'].iloc[-1])
+                        day_low = float(df_daily['Low'].iloc[-1])
+                        high_52w = float(df_daily['High'].max())
                         
                         # Indicators
                         # RSI (Wilder's Smoothing)
@@ -100,13 +141,32 @@ def scan_market(tickers, status_callback=None):
                         
                         # Upper Wick Logic (Shadow)
                         # (High - Close) / Price. A large upper wick means rejection.
-                        high_val = float(df_daily['High'].iloc[-1])
+                        high_val = day_high
                         close_val = current_price
                         upper_wick_pct = ((high_val - close_val) / close_val) * 100
+                        day_range = day_high - day_low
+                        close_pos = ((current_price - day_low) / day_range) if day_range != 0 else 0.0
+
+                        volume_series = df_daily['Volume']
+                        current_volume = float(volume_series.iloc[-1])
+                        avg_volume_20 = float(volume_series.rolling(20).mean().iloc[-1])
+                        rvol = round(current_volume / (avg_volume_20 + 1), 2)
+
+                        recent_volume_avg = float(volume_series.tail(5).mean())
+                        if len(volume_series) >= 25:
+                            prior_volume_avg = float(volume_series.tail(25).head(20).mean())
+                        else:
+                            prior_volume_avg = avg_volume_20
+                        volume_trend_pct = ((recent_volume_avg - prior_volume_avg) / (prior_volume_avg + 1)) * 100
+
+                        mfi_value = float(df_daily['MFI_VAL'].iloc[-1] if 'MFI_VAL' in df_daily.columns and not pd.isna(df_daily['MFI_VAL'].iloc[-1]) else 50.0)
+                        if 'MFI_VAL' in df_daily.columns and len(df_daily['MFI_VAL'].dropna()) >= 6:
+                            mfi_change = float(df_daily['MFI_VAL'].dropna().iloc[-1] - df_daily['MFI_VAL'].dropna().iloc[-6])
+                        else:
+                            mfi_change = 0.0
 
                         # Hourly
-                        if len(chunk) == 1: df_hourly = df_hourly_bulk
-                        else: df_hourly = df_hourly_bulk[ticker] if ticker in df_hourly_bulk else pd.DataFrame()
+                        df_hourly = extract_ticker_frame(df_hourly_bulk, ticker, len(chunk))
                         df_hourly = df_hourly.dropna()
                         
                         rsi_60, ma5_dist, squeeze = 0.0, 0.0, "NORMAL"
@@ -127,35 +187,67 @@ def scan_market(tickers, status_callback=None):
                                     squeeze = "SUPER SQUEEZE"
                                 elif current_w <= w.tail(50).quantile(0.15): 
                                     squeeze = "SQUEEZE"
-                        
+                        price_volume_confirm = change_1d > 0 and rvol >= 1.2 and close_pos >= 0.55
+                        volume_dry_up = volume_trend_pct <= -25 and squeeze in ("SQUEEZE", "SUPER SQUEEZE")
+                        accumulation = (
+                            mfi_value >= 60
+                            and mfi_change > 0
+                            and volume_trend_pct >= 8
+                            and abs(change_1d) <= 3
+                            and upper_wick_pct < 1.5
+                        )
+                        distribution_warning = rvol >= 1.5 and upper_wick_pct >= 1.5 and close_pos < 0.75
+                        if rvol >= 3:
+                            volume_state = "PATLAMA"
+                        elif volume_trend_pct >= 15:
+                            volume_state = "ARTAN"
+                        elif volume_dry_up:
+                            volume_state = "KURUYAN"
+                        else:
+                            volume_state = "NORMAL"
+
                         current_results.append({
                             "Sembol": ticker.replace(".IS", ""),
                             "Sektor": ticker_sectors.get(ticker, "Unknown"),
                             "Sonfiyat": current_price,
-                            "Zirve": current_high,
+                            "Zirve": high_52w,
+                            "Gün Zirve": day_high,
                             "Gün Fark %": change_1d,
-                            "RVol": round(float(df_daily['Volume'].iloc[-1]) / (df_daily['Volume'].rolling(20).mean().iloc[-1] + 1), 2),
+                            "RVol": rvol,
+                            "Hacim Trend %": volume_trend_pct,
+                            "Hacim Durum": volume_state,
+                            "PV Onay": price_volume_confirm,
+                            "Birikim": accumulation,
+                            "Dağıtım Uyarı": distribution_warning,
+                            "Hacim Kuruma": volume_dry_up,
                             "Ma5 S %": ma5_dist,
                             "RSI60": rsi_60,
                             "RSI240": 0.0,
                             "RSIDAY": float(df_daily['RSI'].iloc[-1] if not pd.isna(df_daily['RSI'].iloc[-1]) else 50.0),
-                            "MFI": float(df_daily['MFI_VAL'].iloc[-1] if 'MFI_VAL' in df_daily.columns and not pd.isna(df_daily['MFI_VAL'].iloc[-1]) else 50.0),
+                            "MFI": mfi_value,
+                            "MFI Değişim": mfi_change,
                             "ADX": float(df_daily['ADX_VAL'].iloc[-1] if 'ADX_VAL' in df_daily.columns and not pd.isna(df_daily['ADX_VAL'].iloc[-1]) else 0.0),
                             "U_Wick": upper_wick_pct,
                             "MA21": float(df_daily['MA21'].iloc[-1]),
                             "Squeeze": squeeze,
-                            "StrongClose": (current_price - float(df_daily['Low'].iloc[-1])) / (current_high - float(df_daily['Low'].iloc[-1])) > 0.9 if current_high != float(df_daily['Low'].iloc[-1]) else False,
-                            "GapUp": gap_up, "ClosePos": 0.0
+                            "StrongClose": close_pos > 0.9,
+                            "GapUp": gap_up,
+                            "ClosePos": close_pos
                         })
+                        mark_processed(ticker)
                     except Exception as e:
                         logger.debug(f"Error processing ticker {ticker}: {e}")
+                        mark_failed(ticker, f"Hesaplama hatası: {e}")
                         continue
                 success = True
                 time.sleep(random.uniform(1.2, 2.2))
             except Exception as e:
                 logger.error(f"Error processing chunk: {e}")
+                for ticker in chunk:
+                    mark_failed(ticker, f"Toplu veri hatası: {e}")
                 attempts += 1
-                time.sleep(attempts * 5)
+                if use_backoff and attempts < max_attempts:
+                    time.sleep(attempts * 5)
         return success
 
     # 1. PASS
@@ -165,11 +257,24 @@ def scan_market(tickers, status_callback=None):
         processed_count += len(chunk)
         if status_callback: status_callback(processed_count, total)
         
-    # 2. PASS (Retry Failures)
-    if failed_tickers:
-        time.sleep(10)
-        final_chunks = [failed_tickers[i:i + 10] for i in range(0, len(failed_tickers), 10)]
+    # 2. PASS (Retry missing symbols; small universes get one-by-one retries)
+    missing_tickers = [ticker for ticker in ticker_list if ticker not in processed_tickers]
+    if missing_tickers:
+        time.sleep(3)
+        retry_chunk_size = 1 if len(ticker_list) <= 120 else 10
+        final_chunks = [
+            missing_tickers[i:i + retry_chunk_size]
+            for i in range(0, len(missing_tickers), retry_chunk_size)
+        ]
         for chunk in final_chunks:
-            process_chunk(chunk, results)
+            process_chunk(chunk, results, max_attempts=1, use_backoff=False)
 
-    return pd.DataFrame(results)
+    output = pd.DataFrame(results)
+    output.attrs["requested_count"] = total
+    output.attrs["processed_count"] = len(processed_tickers)
+    output.attrs["failed_tickers"] = [
+        {"Sembol": ticker.replace(".IS", ""), "Sebep": reason}
+        for ticker, reason in failed_ticker_reasons.items()
+        if ticker not in processed_tickers
+    ]
+    return output
