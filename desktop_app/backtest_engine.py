@@ -535,6 +535,9 @@ def _base_metrics(frame, value_col, rel_net_col=None, rel_gross_col=None):
             "Risk/Ödül": 0.0,
             "Ort Rel Net %": 0.0,
             "Medyan Rel Net %": 0.0,
+            "Rel Net Başarı %": 0.0,
+            "En İyi Rel Net %": 0.0,
+            "En Kötü Rel Net %": 0.0,
             "Ort Rel Brüt %": 0.0,
             "Medyan Rel Brüt %": 0.0,
         }
@@ -562,6 +565,9 @@ def _base_metrics(frame, value_col, rel_net_col=None, rel_gross_col=None):
         "Risk/Ödül": avg / abs(worst) if worst < 0 else avg,
         "Ort Rel Net %": float(rel_net_series.mean()) if not rel_net_series.empty else 0.0,
         "Medyan Rel Net %": float(rel_net_series.median()) if not rel_net_series.empty else 0.0,
+        "Rel Net Başarı %": float((rel_net_series > 0).mean() * 100) if not rel_net_series.empty else 0.0,
+        "En İyi Rel Net %": float(rel_net_series.max()) if not rel_net_series.empty else 0.0,
+        "En Kötü Rel Net %": float(rel_net_series.min()) if not rel_net_series.empty else 0.0,
         "Ort Rel Brüt %": float(rel_gross_series.mean()) if not rel_gross_series.empty else 0.0,
         "Medyan Rel Brüt %": float(rel_gross_series.median()) if not rel_gross_series.empty else 0.0,
     }
@@ -583,7 +589,9 @@ def summarize_by_score_bucket(results, horizons=(1, 5, 10, 20)):
             )
             row[f"{horizon}g Net Ort %"] = metrics["Ort %"]
             row[f"{horizon}g Rel Net %"] = metrics["Ort Rel Net %"]
+            row[f"{horizon}g Rel Net Medyan %"] = metrics["Medyan Rel Net %"]
             row[f"{horizon}g Rel Brüt %"] = metrics["Ort Rel Brüt %"]
+            row[f"{horizon}g Rel Başarı %"] = metrics["Rel Net Başarı %"]
             row[f"{horizon}g Başarı %"] = metrics["Başarı %"]
             row[f"{horizon}g Medyan Net %"] = metrics["Medyan %"]
         rows.append(row)
@@ -635,9 +643,12 @@ def summarize_by_signal(results, horizons=(5, 10, 20)):
             )
             row[f"{horizon}g Net Ort %"] = metrics["Ort %"]
             row[f"{horizon}g Rel Net %"] = metrics["Ort Rel Net %"]
+            row[f"{horizon}g Rel Net Medyan %"] = metrics["Medyan Rel Net %"]
             row[f"{horizon}g Rel Brüt %"] = metrics["Ort Rel Brüt %"]
+            row[f"{horizon}g Rel Başarı %"] = metrics["Rel Net Başarı %"]
             row[f"{horizon}g Başarı %"] = metrics["Başarı %"]
             row[f"{horizon}g En Kötü Net %"] = metrics["En Kötü %"]
+            row[f"{horizon}g En Kötü Rel Net %"] = metrics["En Kötü Rel Net %"]
             row[f"{horizon}g En İyi Net %"] = metrics["En İyi %"]
         rows.append(row)
 
@@ -668,7 +679,10 @@ def summarize_symbols_by_score_bucket(results, horizons=(5, 10, 20)):
             metrics = _base_metrics(group, net_col, rel_net_col, rel_col)
             row[f"{horizon}g Net Ort %"] = metrics["Ort %"]
             row[f"{horizon}g Rel Net %"] = metrics["Ort Rel Net %"]
+            row[f"{horizon}g Rel Net Medyan %"] = metrics["Medyan Rel Net %"]
             row[f"{horizon}g Rel Brüt %"] = metrics["Ort Rel Brüt %"]
+            row[f"{horizon}g Rel Başarı %"] = metrics["Rel Net Başarı %"]
+            row[f"{horizon}g En Kötü Rel Net %"] = metrics["En Kötü Rel Net %"]
             row[f"{horizon}g Başarı %"] = metrics["Başarı %"]
         rows.append(row)
 
@@ -732,7 +746,6 @@ def run_backtest(tickers=None, period="1y", horizons=(1, 5, 10, 20), cost_pct=0.
         event_results,
         horizons=tuple(h for h in horizons if h in (5, 10, 20)) or horizons,
     )
-
     return {
         "results": results,
         "event_results": event_results,

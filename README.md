@@ -100,6 +100,19 @@ Bir sonraki öncelik sırası:
 2. Radar karar kartında risk/giriş/kırılım nedenlerini madde madde açıklamak.
 3. BIST100 performans/timeout optimizasyonu yapmak.
 
+### 9. 2026-05-16 Ek Oturum Notu
+
+Bu oturumda radar seçimi, backtest senkronizasyonu ve geçmiş yorum mantığı üzerinde çalışıldı.
+
+*   Radar tablosuna `Seç` checkbox kolonu eklendi. Kullanıcı artık sembolü ayrı bir listeden aramak yerine doğrudan radar tablosunda işaretleyerek seçebilir.
+*   Radar seçimi ile backtest sembol seçimi senkronize edildi. Radarda seçilen sembol backtest tarafına taşınır; backtestte seçilen sembol radarda varsa radar seçimi de aynı sembole güncellenir.
+*   Backtestte olup radarda olmayan semboller desteklenir. Örneğin kullanıcı radarda görünmeyen bir sembolü backtest listesinden seçerse sistem otomatik olarak radarın ilk sembolüne dönmez.
+*   Karar kartına `Karar nedenleri` alanı eklendi. Seçili hisse için giriş, kırılım ve risk nedenleri ayrı satırlarda gösterilir.
+*   Geçmiş kanıt yorumu daha sıkı hale getirildi. Pozitif yorum için artık sadece ortalama relatif getiri değil, event sayısı, relatif medyan, relatif başarı oranı ve en kötü relatif sonuç birlikte dikkate alınır.
+*   Backtest hisse özel incelemesine `Geçmiş Yorumu` eklendi: `Veri yetersiz`, `Geçmiş güçlü`, `Olumlu`, `Karışık`, `Zayıf`.
+*   Backtest özet metriklerine relatif medyan, relatif başarı oranı, en iyi/en kötü relatif net sonuç gibi ek alanlar eklendi.
+*   Yorum kalibrasyonu için iç test fonksiyonu denendi, ancak son kullanıcı ekranından kaldırıldı. Bu konu daha sonra ayrı ve detaylı analiz oturumunda ele alınacak.
+
 ---
 
 ## Çekirdek Özellikler

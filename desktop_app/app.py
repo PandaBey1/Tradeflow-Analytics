@@ -334,19 +334,26 @@ def evidence_for_symbol(symbol, score_bucket, report):
     card = match.iloc[0]
     rel10 = float(card.get("10g Rel Net %", 0.0))
     rel20 = float(card.get("20g Rel Net %", 0.0))
-    success20 = float(card.get("20g Başarı %", 0.0))
+    med10 = float(card.get("10g Rel Net Medyan %", 0.0))
+    med20 = float(card.get("20g Rel Net Medyan %", 0.0))
+    success20 = float(card.get("20g Rel Başarı %", card.get("20g Başarı %", 0.0)))
+    worst20 = float(card.get("20g En Kötü Rel Net %", 0.0))
     events = int(card.get("Giriş Sayısı", 0))
 
-    if events >= 3 and rel10 > 0 and rel20 > 0 and success20 >= 50:
+    if events >= 8 and rel10 > 0.5 and rel20 > 0.5 and med10 > 0 and med20 > 0 and success20 >= 55:
         label = "Pozitif"
-    elif events >= 3 and (rel10 < 0 or rel20 < 0) and success20 < 50:
+    elif events >= 5 and ((rel10 < -0.5 and med10 < 0) or (rel20 < -0.5 and med20 < 0)) and success20 <= 45:
         label = "Zayıf"
     else:
         label = "Nötr"
 
     return {
         "Kanıt": label,
-        "Kanıt Notu": f"{events} event, 10g rel net {rel10:.2f}%, 20g rel net {rel20:.2f}%.",
+        "Kanıt Notu": (
+            f"{events} event, 10g rel net {rel10:.2f}% / medyan {med10:.2f}%, "
+            f"20g rel net {rel20:.2f}% / medyan {med20:.2f}%, "
+            f"20g rel başarı {success20:.0f}%, en kötü {worst20:.2f}%."
+        ),
         "Hist Event": events,
         "10g Rel Net": rel10,
         "20g Rel Net": rel20,
@@ -910,6 +917,62 @@ def render_table(
     )
 
 
+def render_radar_selection_table(table_view, selected_symbol):
+    if table_view is None or table_view.empty or "Sembol" not in table_view.columns:
+        st.info("Tablo verisi yok.")
+        return selected_symbol
+
+    symbols = table_view["Sembol"].dropna().astype(str).tolist()
+    if not symbols:
+        st.info("Tablo verisi yok.")
+        return selected_symbol
+
+    current_symbol = selected_symbol if selected_symbol in symbols else symbols[0]
+    editor_view = table_view.copy()
+    editor_view.insert(0, "Seç", editor_view["Sembol"].astype(str).eq(str(current_symbol)))
+
+    column_config = {
+        "Seç": st.column_config.CheckboxColumn("Seç", width="small"),
+    }
+    for col in ("Giriş Kalitesi", "Kırılım"):
+        if col in editor_view.columns:
+            column_config[col] = st.column_config.ProgressColumn(
+                col,
+                min_value=0,
+                max_value=100,
+                format="%d",
+                width="medium",
+            )
+
+    edited = st.data_editor(
+        editor_view,
+        hide_index=True,
+        height=620,
+        width="stretch",
+        disabled=[col for col in editor_view.columns if col != "Seç"],
+        column_config=column_config,
+        num_rows="fixed",
+        key=f"radar_selection_table_{current_symbol}_{len(editor_view)}",
+    )
+
+    checked_symbols = edited[edited["Seç"]]["Sembol"].astype(str).tolist() if "Seç" in edited.columns else []
+    next_symbol = current_symbol
+    for symbol in checked_symbols:
+        if symbol != current_symbol:
+            next_symbol = symbol
+            break
+
+    if next_symbol != current_symbol:
+        st.session_state["selected_symbol"] = next_symbol
+        st.session_state["radar_selected_symbol"] = next_symbol
+        st.session_state["backtest_selected_symbol"] = next_symbol
+        st.rerun()
+
+    st.session_state["selected_symbol"] = current_symbol
+    st.session_state["radar_selected_symbol"] = current_symbol
+    return current_symbol
+
+
 def init_state():
     defaults = {
         "scan_universe": "BIST30",
@@ -918,6 +981,9 @@ def init_state():
         "scan_meta": {},
         "scan_errors": [],
         "backtest_report": None,
+        "selected_symbol": None,
+        "radar_selected_symbol": None,
+        "backtest_selected_symbol": None,
         "theme_mode": "Koyu",
         "last_scan_time": 0.0,
         "last_scan_started_at": None,
@@ -1032,6 +1098,74 @@ def enrich_with_decision(df, report):
     return pd.DataFrame(enriched_rows)
 
 
+def get_current_radar_symbols():
+    raw_df = st.session_state.get("raw_results")
+    if raw_df is None or raw_df.empty or "Sembol" not in raw_df.columns:
+        return []
+    return raw_df["Sembol"].dropna().astype(str).tolist()
+
+
+def build_decision_reasons(row):
+    if row is None or row.empty:
+        return pd.DataFrame()
+
+    entry_reasons = []
+    breakout_reasons = []
+    risk_reasons = []
+
+    if float(row.get("Skor", 0)) >= 80:
+        entry_reasons.append("Skor güçlü bölgede")
+    elif float(row.get("Skor", 0)) >= 60:
+        entry_reasons.append("Skor orta-güçlü bölgede")
+    if float(row.get("Hacim", 0)) >= 10 or float(row.get("RVol", 0)) >= 1.5:
+        entry_reasons.append("Hacim desteği var")
+    if float(row.get("Para", 0)) >= 8 or float(row.get("MFI", 0)) >= 60:
+        entry_reasons.append("Para akışı pozitif")
+    if float(row.get("Relatif", 0)) > 0 or float(row.get("G.Güç", 0)) > 0:
+        entry_reasons.append("Endekse göre güçlü")
+    if row.get("Kanıt") == "Pozitif":
+        entry_reasons.append("Geçmiş performans pozitif")
+    elif row.get("Kanıt") == "Zayıf":
+        entry_reasons.append("Geçmiş performans zayıf")
+
+    squeeze = row.get("Squeeze")
+    if squeeze == "SUPER SQUEEZE":
+        breakout_reasons.append("Super squeeze var")
+    elif squeeze == "SQUEEZE":
+        breakout_reasons.append("Squeeze var")
+    if row.get("Hacim Kuruma"):
+        breakout_reasons.append("Hacim kuruması kırılım hazırlığına katkı veriyor")
+    if row.get("Birikim"):
+        breakout_reasons.append("Birikim izi var")
+    if float(row.get("MFI Değişim", 0)) > 0:
+        breakout_reasons.append("MFI kısa vadede artıyor")
+    if float(row.get("G.Güç", 0)) > 0:
+        breakout_reasons.append("Relatif güç pozitif")
+
+    if row.get("Dağıtım Uyarı"):
+        risk_reasons.append("Dağıtım uyarısı var")
+    if float(row.get("U_Wick", 0)) > 2.5:
+        risk_reasons.append("Üst fitil belirgin yüksek")
+    elif float(row.get("U_Wick", 0)) > 1.5:
+        risk_reasons.append("Üst fitil orta risk")
+    if float(row.get("RSIDAY", 0)) > 82:
+        risk_reasons.append("RSI aşırı ısınmış")
+    if float(row.get("Ma5 S %", 0)) > 6:
+        risk_reasons.append("Fiyat MA5'ten fazla uzaklaşmış")
+    if not risk_reasons:
+        risk_reasons.append("Belirgin teknik risk düşük")
+
+    rows = []
+    for group_name, reasons in (
+        ("Giriş", entry_reasons or ["Giriş kalitesi için güçlü ek onay sınırlı"]),
+        ("Kırılım", breakout_reasons or ["Kırılım hazırlığı zayıf veya nötr"]),
+        ("Risk", risk_reasons),
+    ):
+        for reason in reasons[:4]:
+            rows.append({"Alan": group_name, "Neden": reason})
+    return pd.DataFrame(rows)
+
+
 def render_topbar():
     meta = st.session_state.get("scan_meta", {})
     scan_time = meta.get("scan_time", "Henüz yok")
@@ -1105,6 +1239,12 @@ def render_decision_card(selected_row, report):
         h3.metric("Event", int(row.get("Hist Event", 0)))
         h4.metric("Başarı", f"{float(row.get('20g Başarı %', 0)):.0f}%")
 
+    with st.expander("Karar nedenleri", expanded=True):
+        render_table(
+            build_decision_reasons(row),
+            height=260,
+        )
+
     with st.expander("Teknik bileşenler", expanded=False):
         render_table(
             pd.DataFrame(
@@ -1136,11 +1276,36 @@ def summarize_selected_symbol_events(symbol_events):
         if rel_col in symbol_events.columns:
             rel_series = symbol_events[rel_col].dropna()
             metrics[f"{horizon}g Rel Net"] = float(rel_series.mean()) if not rel_series.empty else 0.0
+            metrics[f"{horizon}g Rel Medyan"] = float(rel_series.median()) if not rel_series.empty else 0.0
             metrics[f"{horizon}g Rel Başarı"] = float((rel_series > 0).mean() * 100) if not rel_series.empty else 0.0
+            metrics[f"{horizon}g Rel En Kötü"] = float(rel_series.min()) if not rel_series.empty else 0.0
+            metrics[f"{horizon}g Rel En İyi"] = float(rel_series.max()) if not rel_series.empty else 0.0
         if net_col in symbol_events.columns:
             net_series = symbol_events[net_col].dropna()
             metrics[f"{horizon}g Net"] = float(net_series.mean()) if not net_series.empty else 0.0
     return metrics
+
+
+def classify_symbol_backtest(summary):
+    events = int(summary.get("Event", 0) or 0)
+    rel5 = float(summary.get("5g Rel Net", 0.0) or 0.0)
+    rel10 = float(summary.get("10g Rel Net", 0.0) or 0.0)
+    rel20 = float(summary.get("20g Rel Net", 0.0) or 0.0)
+    med10 = float(summary.get("10g Rel Medyan", 0.0) or 0.0)
+    med20 = float(summary.get("20g Rel Medyan", 0.0) or 0.0)
+    success10 = float(summary.get("10g Rel Başarı", 0.0) or 0.0)
+    success20 = float(summary.get("20g Rel Başarı", 0.0) or 0.0)
+    worst20 = float(summary.get("20g Rel En Kötü", 0.0) or 0.0)
+
+    if events < 8:
+        return "Veri yetersiz", "tf-status-info", f"{events} event var; güvenilir yorum için en az 8 event aranıyor."
+    if rel10 > 0.5 and rel20 > 0.5 and med10 > 0 and med20 > 0 and success10 >= 55 and success20 >= 55:
+        return "Geçmiş güçlü", "tf-status-good", "Ortalama, medyan ve başarı oranı birlikte pozitif."
+    if ((rel10 < -0.5 and med10 < 0) or (rel20 < -0.5 and med20 < 0)) and success20 <= 45:
+        return "Zayıf", "tf-status-risk", "Relatif net ortalama/medyan zayıf ve başarı oranı düşük."
+    if rel5 > 0 and rel10 > 0 and rel20 > 0 and med20 >= 0 and success20 >= 52 and worst20 > -12:
+        return "Olumlu", "tf-status-good", "Relatif net sonuçlar olumlu, fakat güçlü eşiklerin tamamı geçilmedi."
+    return "Karışık", "tf-status-warn", "Kanıtlar yeterince tutarlı değil; temkinli yorumlanmalı."
 
 
 def build_selected_symbol_bucket_view(symbol_events):
@@ -1159,6 +1324,7 @@ def build_selected_symbol_bucket_view(symbol_events):
             if rel_col in group.columns:
                 rel_series = group[rel_col].dropna()
                 row[f"{horizon}g Rel Net %"] = float(rel_series.mean()) if not rel_series.empty else 0.0
+                row[f"{horizon}g Rel Medyan %"] = float(rel_series.median()) if not rel_series.empty else 0.0
                 row[f"{horizon}g Rel Başarı %"] = float((rel_series > 0).mean() * 100) if not rel_series.empty else 0.0
         rows.append(row)
 
@@ -1205,6 +1371,7 @@ def build_selected_symbol_signal_view(symbol_events):
                 "Sinyal": label,
                 "Event": int(len(group)),
                 "20g Rel Net %": float(rel20.mean()) if not rel20.empty else 0.0,
+                "20g Rel Medyan %": float(rel20.median()) if not rel20.empty else 0.0,
                 "20g Rel Başarı %": float((rel20 > 0).mean() * 100) if not rel20.empty else 0.0,
             }
         )
@@ -1221,23 +1388,49 @@ def render_symbol_backtest_view(report):
     st.caption("Bir sembol seç; geçmişte bu hisse için oluşan radar eventleri ve sonraki performans burada özetlenir.")
 
     symbols = sorted(event_results["Sembol"].dropna().astype(str).unique().tolist())
-    default_symbol = st.session_state.get("selected_symbol")
+    radar_symbol = st.session_state.get("radar_selected_symbol") or st.session_state.get("selected_symbol")
+    backtest_symbol = st.session_state.get("backtest_selected_symbol")
+    if backtest_symbol in symbols:
+        default_symbol = backtest_symbol
+    elif radar_symbol in symbols:
+        default_symbol = radar_symbol
+    else:
+        default_symbol = symbols[0]
+        if radar_symbol:
+            st.caption(f"{radar_symbol} backtest event listesinde yok; backtest için ayrı sembol seçebilirsin.")
     selected_symbol = st.selectbox(
         "Hisse seç",
         symbols,
         index=symbols.index(default_symbol) if default_symbol in symbols else 0,
         width="stretch",
-        key="backtest_symbol_picker",
+        key=f"backtest_symbol_picker_{default_symbol}",
     )
+    st.session_state["backtest_selected_symbol"] = selected_symbol
+    radar_symbols = get_current_radar_symbols()
+    if selected_symbol in radar_symbols:
+        st.session_state["selected_symbol"] = selected_symbol
+        st.session_state["radar_selected_symbol"] = selected_symbol
     symbol_events = event_results[event_results["Sembol"].astype(str) == str(selected_symbol)].copy()
     symbol_events = symbol_events.sort_values("Tarih", ascending=False)
     summary = summarize_selected_symbol_events(symbol_events)
+    label, label_class, label_note = classify_symbol_backtest(summary)
+
+    st.markdown(
+        f"""
+        <div class="tf-panel">
+            <div class="tf-kicker">Geçmiş Yorumu</div>
+            <div class="{label_class}">{html.escape(label)}</div>
+            <div class="tf-muted" style="margin-top:6px;">{html.escape(label_note)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Event", summary.get("Event", 0))
-    m2.metric("Ort Skor", f"{summary.get('Ort Skor', 0):.0f}")
-    m3.metric("5g Rel Net", f"{summary.get('5g Rel Net', 0):.2f}%")
-    m4.metric("10g Rel Net", f"{summary.get('10g Rel Net', 0):.2f}%")
+    m2.metric("10g Rel Net", f"{summary.get('10g Rel Net', 0):.2f}%")
+    m3.metric("20g Rel Net", f"{summary.get('20g Rel Net', 0):.2f}%")
+    m4.metric("20g Medyan", f"{summary.get('20g Rel Medyan', 0):.2f}%")
     m5.metric("20g Rel Başarı", f"{summary.get('20g Rel Başarı', 0):.0f}%")
 
     rel_cols = [col for col in ["5g Rel Net", "10g Rel Net", "20g Rel Net"] if col in summary]
@@ -1488,13 +1681,14 @@ def render_glossary_tab():
     evidence_guide = pd.DataFrame(
         [
             {"Alan": "Veri Yok", "Anlamı": "Backtest henüz çalışmamış ya da bu hisse/skor grubu için geçmiş event yok."},
-            {"Alan": "Pozitif", "Anlamı": "En az 3 geçmiş eventte 10g ve 20g relatif net getiri pozitif, 20g başarı oranı en az %50."},
+            {"Alan": "Pozitif", "Anlamı": "En az 8 eventte 10g/20g relatif net ortalama ve medyan pozitif, 20g relatif başarı en az %55."},
             {"Alan": "Nötr", "Anlamı": "Geçmiş veri var ama pozitif veya zayıf demek için yeterince net değil."},
-            {"Alan": "Zayıf", "Anlamı": "En az 3 eventte relatif sonuçlar zayıf ve 20g başarı oranı %50 altında."},
+            {"Alan": "Zayıf", "Anlamı": "En az 5 eventte relatif net ortalama ve medyan zayıf, 20g relatif başarı %45 veya altında."},
             {"Alan": "Event", "Anlamı": "Geçmişte bu koşula benzeyen sinyal sayısı."},
             {"Alan": "Performans Günü", "Anlamı": "Sinyal oluştuktan kaç işlem günü sonrası ölçüldüğünü gösterir. 5g, 10g ve 20g bu yüzden grafikte ayrı ayrı görünür."},
             {"Alan": "5g/10g/20g Net", "Anlamı": "Sinyal sonrası hissenin kendi net getirisi. İşlem maliyeti düşülmüş sonuçtur."},
             {"Alan": "5g/10g/20g Rel Net", "Anlamı": "Sinyal sonrası hissenin endekse göre net göreceli performansı. Pozitifse endeksten iyi gitmiş demektir."},
+            {"Alan": "Rel Medyan", "Anlamı": "Uç değerlerden daha az etkilenen ortanca relatif net sonuçtur."},
             {"Alan": "Rel Başarı %", "Anlamı": "Seçili performans gününde relatif net sonucu pozitif olan event oranı."},
         ]
     )
@@ -1767,28 +1961,16 @@ def main():
                 if "Kanıt" in table_view.columns:
                     table_view = table_view.rename(columns={"Kanıt": "Geçmiş"})
                 symbols = filtered["Sembol"].astype(str).tolist()
-                current_symbol = st.session_state.get("selected_symbol")
+                current_symbol = st.session_state.get("radar_selected_symbol") or st.session_state.get("selected_symbol")
                 if current_symbol not in symbols:
                     current_symbol = symbols[0]
-                selected_symbol = st.selectbox(
-                    "Seçili Hisse",
-                    symbols,
-                    index=symbols.index(current_symbol),
-                    width="stretch",
-                    key="radar_symbol_picker",
-                )
-                st.session_state["selected_symbol"] = selected_symbol
-                render_table(
+                selected_symbol = render_radar_selection_table(
                     table_view,
-                    height=620,
-                    integer_cols=["Giriş Kalitesi", "Kırılım", "Skor", "MFI"],
-                    progress_cols=["Giriş Kalitesi", "Kırılım"],
-                    selected_col="Sembol",
-                    selected_value=selected_symbol,
+                    current_symbol,
                 )
 
         with right:
-            selected_symbol = st.session_state.get("selected_symbol")
+            selected_symbol = st.session_state.get("radar_selected_symbol") or st.session_state.get("selected_symbol")
             if not selected_symbol and not filtered.empty:
                 selected_symbol = filtered.iloc[0]["Sembol"]
             selected = filtered[filtered["Sembol"] == selected_symbol].iloc[0] if selected_symbol and not filtered.empty else None
