@@ -62,56 +62,6 @@ Yorum kuralı:
 `Rel Net % = Hisse Net Getirisi - XU100 Getirisi`.
 `Rel Net %` pozitifse hisse, işlem maliyeti düşüldükten sonra aynı dönemde endeksten daha iyi performans göstermiştir.
 
-### 7. 2026-05-14 Geliştirme Notu
-
-Bu oturumda canlı radar ile backtest laboratuvarı kullanıcı akışı açısından birbirine bağlandı.
-
-*   Canlı tarama endeksi seçilebilir hale geldi: `BIST30`, `BIST100`, `BISTTUM`.
-*   Varsayılan canlı endeks `BIST30` oldu.
-*   Endeks modlarında dashboard seçilen endeksteki hisselerin tamamını gösterir. `Radar Sinyali` sayısı, bu endeksten skor eşiğini geçenleri ifade eder.
-*   Skor eşiğini geçmeyen hisseler `Düşük Skor / İzleme` olarak açıklanır; bunlar taranmamış veya sistem dışı değildir.
-*   `Canlı Hisse Backtest Karnesi` paneli eklendi. Canlı listede olan ve backtest kapsamına giren hisse seçildiğinde, aynı sembol ve aynı skor grubu için geçmiş karne gösterilir.
-*   Canlı tarama ve backtest aynı anda çalıştırılamaz. Yahoo Finance timeout/donma riskini azaltmak için tek aktif piyasa işlemi kilidi eklendi.
-*   Otomatik grafikler varsayılan kapalı hale getirildi.
-*   Backtest sonuçlarında brüt relatif ve net relatif getiri ayrımı eklendi.
-*   Günlük tekrarları azaltmak için event/cooldown backtest özeti eklendi. Aynı hisse aynı skor grubunda kaldıkça tekrar sinyal sayılmaz; aynı gruba dönüş için cooldown uygulanır.
-
-Bir sonraki ana geliştirme adımları:
-
-*   BIST100 ve BISTTUM taramalarında hız/timeout optimizasyonlarını iyileştirmek.
-
-### 8. 2026-05-16 Kullanıcı Deneyimi ve Backtest Notu
-
-Bu oturumda uygulama daha sade, açıklanabilir ve kullanıcı dostu hale getirildi.
-
-*   Ana endeks seçimi `Endeks` olarak adlandırıldı. `Evren` ve `Piyasa Endeksi` gibi kafa karıştıran ifadeler kaldırıldı.
-*   `Kanıtı Güncelle` butonu `Backtest Çalıştır` olarak değiştirildi.
-*   Koyu/açık tema kontrolü eklendi ve tema renkleri metrikler, sidebar, sekmeler, grafikler ve tablolar için uyumlu hale getirildi.
-*   Streamlit `st.dataframe` tema müdahaleleriyle görünmez tablo sorununa yol açtığı için radar/backtest/sector tabloları tema uyumlu özel HTML tablo renderer'ına taşındı.
-*   `Giriş Kalitesi` ve `Kırılım` kolonlarındaki progress bar görünümü özel tablo renderer'ı içinde geri eklendi.
-*   `Sözlük` sekmesi eklendi. Skor, giriş kalitesi, kırılım, risk, analiz etiketleri, backtest kanıtı, `Performans Günü`, net/relatif net getiri ve başarı oranı açıklanır.
-*   Backtest sekmesi kullanıcı dostu hale getirildi. Üstte `Hisse Özel İnceleme` alanı vardır; kullanıcı bir sembol seçip o hissenin geçmiş event sayısını, ortalama skorunu, 5/10/20 günlük relatif net performansını, skor grubu dağılımını, sinyal bazlı sonuçlarını ve son event kayıtlarını görür.
-*   Genel backtest özeti korunmuştur, fakat hisse özel incelemenin altına taşınmıştır.
-*   Backtest grafiklerinde eski `Ufuk` ifadesi yerine `Performans Günü` kullanılır.
-
-Bir sonraki öncelik sırası:
-
-1. Hisse özel backtest yorum etiketi eklemek.
-2. Radar karar kartında risk/giriş/kırılım nedenlerini madde madde açıklamak.
-3. BIST100 performans/timeout optimizasyonu yapmak.
-
-### 9. 2026-05-16 Ek Oturum Notu
-
-Bu oturumda radar seçimi, backtest senkronizasyonu ve geçmiş yorum mantığı üzerinde çalışıldı.
-
-*   Radar tablosuna `Seç` checkbox kolonu eklendi. Kullanıcı artık sembolü ayrı bir listeden aramak yerine doğrudan radar tablosunda işaretleyerek seçebilir.
-*   Radar seçimi ile backtest sembol seçimi senkronize edildi. Radarda seçilen sembol backtest tarafına taşınır; backtestte seçilen sembol radarda varsa radar seçimi de aynı sembole güncellenir.
-*   Backtestte olup radarda olmayan semboller desteklenir. Örneğin kullanıcı radarda görünmeyen bir sembolü backtest listesinden seçerse sistem otomatik olarak radarın ilk sembolüne dönmez.
-*   Karar kartına `Karar nedenleri` alanı eklendi. Seçili hisse için giriş, kırılım ve risk nedenleri ayrı satırlarda gösterilir.
-*   Geçmiş kanıt yorumu daha sıkı hale getirildi. Pozitif yorum için artık sadece ortalama relatif getiri değil, event sayısı, relatif medyan, relatif başarı oranı ve en kötü relatif sonuç birlikte dikkate alınır.
-*   Backtest hisse özel incelemesine `Geçmiş Yorumu` eklendi: `Veri yetersiz`, `Geçmiş güçlü`, `Olumlu`, `Karışık`, `Zayıf`.
-*   Backtest özet metriklerine relatif medyan, relatif başarı oranı, en iyi/en kötü relatif net sonuç gibi ek alanlar eklendi.
-*   Yorum kalibrasyonu için iç test fonksiyonu denendi, ancak son kullanıcı ekranından kaldırıldı. Bu konu daha sonra ayrı ve detaylı analiz oturumunda ele alınacak.
 
 ---
 
@@ -166,4 +116,3 @@ Yerel geliştirme ortamında mevcut sanal ortam kullanılıyorsa:
 Bu yazılım eğitim, araştırma ve analiz amaçlıdır. Üretilen sinyaller, puanlar ve veriler yatırım tavsiyesi değildir. Finansal kararlar kullanıcı sorumluluğundadır.
 
 ---
-*Powered by AntiGravity & TradeFlow AI*
